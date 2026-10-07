@@ -134,7 +134,8 @@ export default function CartPage() {
                           onClick={() =>
                             updateQuantity(item.variantId, item.quantity - 1)
                           }
-                          className="h-8 w-8 text-royal hover:bg-cream flex items-center justify-center text-sm"
+                          disabled={item.quantity <= 1}
+                          className="h-8 w-8 text-royal hover:bg-cream flex items-center justify-center text-sm disabled:opacity-30 disabled:cursor-not-allowed transition-opacity"
                           aria-label="Decrease quantity"
                         >
                           -
@@ -147,7 +148,8 @@ export default function CartPage() {
                           onClick={() =>
                             updateQuantity(item.variantId, item.quantity + 1)
                           }
-                          className="h-8 w-8 text-royal hover:bg-cream flex items-center justify-center text-sm"
+                          disabled={item.quantity >= item.maxStock}
+                          className="h-8 w-8 text-royal hover:bg-cream flex items-center justify-center text-sm disabled:opacity-30 disabled:cursor-not-allowed transition-opacity"
                           aria-label="Increase quantity"
                         >
                           +

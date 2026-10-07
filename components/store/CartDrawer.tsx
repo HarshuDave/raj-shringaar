@@ -175,7 +175,8 @@ export default function CartDrawer() {
                         <button
                           type="button"
                           onClick={() => updateQuantity(item.variantId, item.quantity - 1)}
-                          className="flex h-6 w-6 items-center justify-center text-xs text-royal hover:bg-cream"
+                          disabled={item.quantity <= 1}
+                          className="flex h-6 w-6 items-center justify-center text-xs text-royal hover:bg-cream disabled:opacity-30 disabled:cursor-not-allowed transition-opacity"
                           aria-label="Decrease quantity"
                         >
                           -
@@ -186,7 +187,8 @@ export default function CartDrawer() {
                         <button
                           type="button"
                           onClick={() => updateQuantity(item.variantId, item.quantity + 1)}
-                          className="flex h-6 w-6 items-center justify-center text-xs text-royal hover:bg-cream"
+                          disabled={item.quantity >= item.maxStock}
+                          className="flex h-6 w-6 items-center justify-center text-xs text-royal hover:bg-cream disabled:opacity-30 disabled:cursor-not-allowed transition-opacity"
                           aria-label="Increase quantity"
                         >
                           +

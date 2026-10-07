@@ -986,11 +986,26 @@ export async function createOrder(
   // Execute inside an ACID transaction to guarantee stock deduction, verified prices, and order creation occur atomically
   return await prisma.$transaction(async (tx) => {
     let verifiedSubtotal = 0;
+    const verifiedItems: Array<{
+      productId: string;
+      variantId: string;
+      productName: string;
+      size?: string;
+      colour?: string;
+      price: number;
+      quantity: number;
+      image?: string;
+    }> = [];
 
     // 1. Strict Stock Validation & Price Verification against live PostgreSQL
     for (const item of orderData.items) {
+      if (!item.quantity || item.quantity <= 0) {
+        throw new Error("Item quantity must be greater than 0.");
+      }
+
       const dbVariant = await tx.productVariant.findUnique({
         where: { id: item.variantId },
+        include: { product: true },
       });
 
       if (!dbVariant) {
@@ -1001,17 +1016,29 @@ export async function createOrder(
 
       if (dbVariant.stock < item.quantity) {
         throw new Error(
-          `Insufficient stock for "${item.productName}". Available: ${dbVariant.stock}, Requested: ${item.quantity}.`
+          `Insufficient stock for "${dbVariant.product?.name || item.productName}". Available: ${dbVariant.stock}, Requested: ${item.quantity}.`
         );
       }
 
       // Authoritative price directly from PostgreSQL row
-      verifiedSubtotal += dbVariant.price * item.quantity;
+      const authoritativePrice = dbVariant.price;
+      verifiedSubtotal += authoritativePrice * item.quantity;
 
       // Atomic stock decrement
       await tx.productVariant.update({
         where: { id: item.variantId },
         data: { stock: { decrement: item.quantity } },
+      });
+
+      verifiedItems.push({
+        productId: dbVariant.productId,
+        variantId: dbVariant.id,
+        productName: dbVariant.product?.name || item.productName,
+        size: dbVariant.size || item.size,
+        colour: dbVariant.colour || item.colour,
+        price: authoritativePrice,
+        quantity: item.quantity,
+        image: item.image || "",
       });
     }
 
@@ -1033,7 +1060,7 @@ export async function createOrder(
         paymentMethod: orderData.paymentMethod,
         shippingAddress: orderData.shippingAddress as any,
         items: {
-          create: orderData.items.map((i) => ({
+          create: verifiedItems.map((i) => ({
             productId: i.productId,
             variantId: i.variantId,
             productName: i.productName,
@@ -1118,6 +1145,9 @@ export async function updateOrderStatus(
 export async function updateStock(variantId: string, newStock: number): Promise<boolean> {
   if (!hasDb) {
     throw new Error("Live database connection required for stock updates.");
+  }
+  if (newStock < 0) {
+    throw new Error("Stock cannot be negative.");
   }
 
   await prisma.productVariant.update({

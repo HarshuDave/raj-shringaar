@@ -54,13 +54,43 @@ export default function ProductDetailClient({
   const [quantity, setQuantity] = useState(1);
   const [addedNotice, setAddedNotice] = useState(false);
 
+  const handleSelectSize = (sz: string) => {
+    setSelectedSize(sz);
+    // If the currently selected colour is not available for this size, pick the first available colour for this size
+    const matchingVariant = product.variants.find(
+      (v) => v.size === sz && (!selectedColour || v.colour === selectedColour)
+    );
+    if (!matchingVariant) {
+      const fallbackVariantForSize = product.variants.find((v) => v.size === sz);
+      if (fallbackVariantForSize?.colour) {
+        setSelectedColour(fallbackVariantForSize.colour);
+      }
+    }
+  };
+
+  const handleSelectColour = (col: string) => {
+    setSelectedColour(col);
+    // If the currently selected size is not available for this colour, pick the first available size for this colour
+    const matchingVariant = product.variants.find(
+      (v) => v.colour === col && (!selectedSize || v.size === selectedSize)
+    );
+    if (!matchingVariant) {
+      const fallbackVariantForColour = product.variants.find((v) => v.colour === col);
+      if (fallbackVariantForColour?.size) {
+        setSelectedSize(fallbackVariantForColour.size);
+      }
+    }
+  };
+
   // Find active variant matching current size & colour selections
   const currentVariant: ProductVariant =
     product.variants.find((v) => {
       const sizeMatch = !selectedSize || v.size === selectedSize;
       const colourMatch = !selectedColour || v.colour === selectedColour;
       return sizeMatch && colourMatch;
-    }) || product.variants[0];
+    }) ||
+    product.variants.find((v) => !selectedSize || v.size === selectedSize) ||
+    product.variants[0];
 
   const currentPrice = currentVariant?.price ?? 499;
   const currentDiscountPrice = currentVariant?.discountPrice;
@@ -75,7 +105,7 @@ export default function ProductDetailClient({
       : 0;
 
   const handleAddToCart = () => {
-    if (isOutOfStock) return;
+    if (isOutOfStock || !currentVariant) return;
 
     addItem(
       {
@@ -97,7 +127,7 @@ export default function ProductDetailClient({
   };
 
   const handleBuyNow = () => {
-    if (isOutOfStock) return;
+    if (isOutOfStock || !currentVariant) return;
     handleAddToCart();
     router.push("/checkout");
   };
@@ -255,7 +285,7 @@ export default function ProductDetailClient({
                       <button
                         key={sz}
                         type="button"
-                        onClick={() => setSelectedSize(sz)}
+                        onClick={() => handleSelectSize(sz)}
                         className={`flex h-11 min-w-[50px] px-3 items-center justify-center text-xs font-semibold border transition-all ${
                           selectedSize === sz
                             ? "border-gold bg-gold text-royal shadow-sm"
@@ -283,7 +313,7 @@ export default function ProductDetailClient({
                     <button
                       key={col}
                       type="button"
-                      onClick={() => setSelectedColour(col ?? null)}
+                      onClick={() => handleSelectColour(col)}
                       className={`h-9 px-4 text-xs font-medium border transition-all ${
                         selectedColour === col
                           ? "border-gold bg-royal text-gold font-semibold"
@@ -325,7 +355,7 @@ export default function ProductDetailClient({
                   type="button"
                   onClick={() => setQuantity((q) => Math.max(1, q - 1))}
                   disabled={quantity <= 1 || isOutOfStock}
-                  className="text-base text-royal hover:text-gold disabled:opacity-30"
+                  className="text-base text-royal hover:text-gold disabled:opacity-30 disabled:cursor-not-allowed"
                   aria-label="Decrease quantity"
                 >
                   -
@@ -339,7 +369,7 @@ export default function ProductDetailClient({
                     setQuantity((q) => Math.min(currentStock, q + 1))
                   }
                   disabled={quantity >= currentStock || isOutOfStock}
-                  className="text-base text-royal hover:text-gold disabled:opacity-30"
+                  className="text-base text-royal hover:text-gold disabled:opacity-30 disabled:cursor-not-allowed"
                   aria-label="Increase quantity"
                 >
                   +
@@ -351,9 +381,9 @@ export default function ProductDetailClient({
                 type="button"
                 onClick={handleAddToCart}
                 disabled={isOutOfStock}
-                className="flex h-12 flex-1 items-center justify-center bg-gold px-6 text-xs font-bold uppercase tracking-widest text-royal hover:bg-gold-light disabled:opacity-40 transition-colors shadow-sm"
+                className="flex h-12 flex-1 items-center justify-center bg-gold px-6 text-xs font-bold uppercase tracking-widest text-royal hover:bg-gold-light disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
               >
-                Add to Cart
+                {isOutOfStock ? "Out of Stock" : "Add to Cart"}
               </button>
 
               {/* Buy Now */}
@@ -361,9 +391,9 @@ export default function ProductDetailClient({
                 type="button"
                 onClick={handleBuyNow}
                 disabled={isOutOfStock}
-                className="flex h-12 flex-1 items-center justify-center border-2 border-royal bg-royal px-6 text-xs font-bold uppercase tracking-widest text-white hover:bg-royal-light disabled:opacity-40 transition-colors"
+                className="flex h-12 flex-1 items-center justify-center border-2 border-royal bg-royal px-6 text-xs font-bold uppercase tracking-widest text-white hover:bg-royal-light disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
-                Buy Now →
+                {isOutOfStock ? "Unavailable" : "Buy Now →"}
               </button>
             </div>
 

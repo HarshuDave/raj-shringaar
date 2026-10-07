@@ -27,6 +27,8 @@ export const useCartStore = create<CartStore>()(
       closeCart: () => set({ isOpen: false }),
 
       addItem: (item, quantity = 1) => {
+        if (item.maxStock <= 0 || quantity <= 0) return;
+
         set((state) => {
           const existingIndex = state.items.findIndex(
             (i) => i.variantId === item.variantId
@@ -63,15 +65,16 @@ export const useCartStore = create<CartStore>()(
       },
 
       updateQuantity: (variantId: string, quantity: number) => {
-        if (quantity <= 0) {
-          get().removeItem(variantId);
-          return;
-        }
-
         set((state) => ({
           items: state.items.map((item) =>
             item.variantId === variantId
-              ? { ...item, quantity: Math.min(quantity, item.maxStock) }
+              ? {
+                  ...item,
+                  quantity: Math.max(
+                    1,
+                    Math.min(quantity, Math.max(1, item.maxStock))
+                  ),
+                }
               : item
           ),
         }));

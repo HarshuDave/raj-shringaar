@@ -14,29 +14,74 @@ export type PlaceOrderInput = {
 
 export async function placeOrderAction(input: PlaceOrderInput) {
   try {
-    if (!input.items || input.items.length === 0) {
+    if (!input.items || !Array.isArray(input.items) || input.items.length === 0) {
       return { success: false, error: "Your bag is empty." };
     }
 
-    if (!input.customerName || !input.customerEmail || !input.customerPhone) {
-      return { success: false, error: "Please provide all customer contact details." };
+    const trimmedName = input.customerName?.trim();
+    if (!trimmedName || trimmedName.length < 2) {
+      return { success: false, error: "Please provide a valid customer name." };
     }
 
-    if (
-      !input.shippingAddress.addressLine1 ||
-      !input.shippingAddress.city ||
-      !input.shippingAddress.state ||
-      !input.shippingAddress.pincode
-    ) {
-      return { success: false, error: "Please complete all mandatory shipping address fields." };
+    const trimmedEmail = input.customerEmail?.trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!trimmedEmail || !emailRegex.test(trimmedEmail)) {
+      return { success: false, error: "Please provide a valid email address." };
+    }
+
+    const cleanPhone = input.customerPhone?.replace(/\D/g, "");
+    if (!cleanPhone || cleanPhone.length !== 10) {
+      return { success: false, error: "Please provide a valid 10-digit mobile number." };
+    }
+
+    const addr = input.shippingAddress;
+    if (!addr) {
+      return { success: false, error: "Shipping address is missing." };
+    }
+
+    const trimmedAddress1 = addr.addressLine1?.trim();
+    if (!trimmedAddress1 || trimmedAddress1.length < 5) {
+      return { success: false, error: "Please provide a valid street address." };
+    }
+
+    const trimmedCity = addr.city?.trim();
+    if (!trimmedCity) {
+      return { success: false, error: "Please provide a delivery city." };
+    }
+
+    const trimmedState = addr.state?.trim();
+    if (!trimmedState) {
+      return { success: false, error: "Please provide a delivery state." };
+    }
+
+    const cleanPincode = addr.pincode?.replace(/\D/g, "");
+    if (!cleanPincode || cleanPincode.length !== 6) {
+      return { success: false, error: "Please provide a valid 6-digit postal PIN code." };
+    }
+
+    // Validate each cart item
+    for (const item of input.items) {
+      if (!item.variantId || !item.quantity || item.quantity <= 0 || !Number.isInteger(item.quantity)) {
+        return { success: false, error: "Invalid item quantity in bag." };
+      }
     }
 
     // Create order with server-side inventory deduction
     const order = await createOrder({
-      customerName: input.customerName,
-      customerEmail: input.customerEmail,
-      customerPhone: input.customerPhone,
-      shippingAddress: input.shippingAddress,
+      customerName: trimmedName,
+      customerEmail: trimmedEmail,
+      customerPhone: cleanPhone,
+      shippingAddress: {
+        ...addr,
+        fullName: trimmedName,
+        email: trimmedEmail,
+        phone: cleanPhone,
+        addressLine1: trimmedAddress1,
+        addressLine2: addr.addressLine2?.trim() || "",
+        city: trimmedCity,
+        state: trimmedState,
+        pincode: cleanPincode,
+      },
       items: input.items,
       totalAmount: input.totalAmount,
       orderStatus: "Confirmed",

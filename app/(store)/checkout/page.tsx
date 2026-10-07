@@ -52,6 +52,49 @@ export default function CheckoutPage() {
       return;
     }
 
+    const trimmedName = form.name.trim();
+    if (!trimmedName || trimmedName.length < 2) {
+      setErrorMessage("Please enter a valid full name (at least 2 characters).");
+      return;
+    }
+
+    const trimmedEmail = form.email.trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!trimmedEmail || !emailRegex.test(trimmedEmail)) {
+      setErrorMessage("Please enter a valid email address for order notifications.");
+      return;
+    }
+
+    const cleanPhone = form.phone.replace(/\D/g, "");
+    if (cleanPhone.length !== 10) {
+      setErrorMessage("Please enter a valid 10-digit mobile number.");
+      return;
+    }
+
+    const trimmedAddress = form.addressLine1.trim();
+    if (!trimmedAddress || trimmedAddress.length < 5) {
+      setErrorMessage("Please enter a detailed delivery address (at least 5 characters).");
+      return;
+    }
+
+    const trimmedCity = form.city.trim();
+    if (!trimmedCity) {
+      setErrorMessage("Please enter your delivery city.");
+      return;
+    }
+
+    const trimmedState = form.state.trim();
+    if (!trimmedState) {
+      setErrorMessage("Please enter your delivery state.");
+      return;
+    }
+
+    const cleanPincode = form.pincode.replace(/\D/g, "");
+    if (cleanPincode.length !== 6) {
+      setErrorMessage("Please enter a valid 6-digit postal PIN code.");
+      return;
+    }
+
     startTransition(async () => {
       const orderItems = items.map((item) => ({
         id: `oi_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
@@ -66,18 +109,18 @@ export default function CheckoutPage() {
       }));
 
       const res = await placeOrderAction({
-        customerName: form.name,
-        customerEmail: form.email,
-        customerPhone: form.phone,
+        customerName: trimmedName,
+        customerEmail: trimmedEmail,
+        customerPhone: cleanPhone,
         shippingAddress: {
-          fullName: form.name,
-          phone: form.phone,
-          email: form.email,
-          addressLine1: form.addressLine1,
-          addressLine2: form.addressLine2,
-          city: form.city,
-          state: form.state,
-          pincode: form.pincode,
+          fullName: trimmedName,
+          phone: cleanPhone,
+          email: trimmedEmail,
+          addressLine1: trimmedAddress,
+          addressLine2: form.addressLine2.trim(),
+          city: trimmedCity,
+          state: trimmedState,
+          pincode: cleanPincode,
         },
         items: orderItems,
         totalAmount,
@@ -378,6 +421,12 @@ export default function CheckoutPage() {
                     ₹{totalAmount.toLocaleString("en-IN")}
                   </span>
                 </div>
+
+                {errorMessage && (
+                  <div className="mb-4 p-3 bg-red-50 border border-red-300 text-red-800 text-xs rounded-xs">
+                    {errorMessage}
+                  </div>
+                )}
 
                 <button
                   type="submit"
