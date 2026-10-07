@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useCartStore } from "@/lib/store/cart";
+import { shippingConfig, getAmountToFreeShipping } from "@/lib/config/shipping";
 
 export default function CartDrawer() {
   const { items, isOpen, closeCart, updateQuantity, removeItem, getTotalPrice } =
@@ -34,8 +35,7 @@ export default function CartDrawer() {
   if (!mounted) return null;
 
   const totalPrice = getTotalPrice();
-  const freeShippingThreshold = 999;
-  const amountToFreeShipping = Math.max(0, freeShippingThreshold - totalPrice);
+  const amountToFreeShipping = getAmountToFreeShipping(totalPrice);
 
   return (
     <>

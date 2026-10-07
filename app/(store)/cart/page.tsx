@@ -4,6 +4,11 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useCartStore } from "@/lib/store/cart";
+import {
+  shippingConfig,
+  calculateShippingFee,
+  getAmountToFreeShipping,
+} from "@/lib/config/shipping";
 
 export default function CartPage() {
   const [mounted, setMounted] = useState(false);
@@ -23,10 +28,9 @@ export default function CartPage() {
   }
 
   const subtotal = getTotalPrice();
-  const shippingFee = subtotal >= 999 || subtotal === 0 ? 0 : 99;
+  const shippingFee = calculateShippingFee(subtotal);
   const grandTotal = subtotal + shippingFee;
-  const freeShippingThreshold = 999;
-  const remainingForFreeShipping = Math.max(0, freeShippingThreshold - subtotal);
+  const remainingForFreeShipping = getAmountToFreeShipping(subtotal);
 
   return (
     <div className="bg-ivory py-12 px-4 sm:px-6 lg:px-12">
@@ -77,7 +81,7 @@ export default function CartPage() {
                       for <strong className="text-gold">FREE Delivery</strong>
                     </span>
                     <span className="text-[10px] text-royal/60 font-semibold uppercase">
-                      ₹999 min
+                      ₹{shippingConfig.freeShippingThreshold} min
                     </span>
                   </div>
                 ) : (

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCartStore } from "@/lib/store/cart";
 import { placeOrderAction } from "@/app/actions/order";
+import { calculateShippingFee } from "@/lib/config/shipping";
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -39,7 +40,7 @@ export default function CheckoutPage() {
   }
 
   const subtotal = getTotalPrice();
-  const shippingFee = subtotal >= 999 || subtotal === 0 ? 0 : 99;
+  const shippingFee = calculateShippingFee(subtotal);
   const totalAmount = subtotal + shippingFee;
 
   const handleSubmit = (e: React.FormEvent) => {

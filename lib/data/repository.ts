@@ -18,6 +18,27 @@ import { prisma } from "@/lib/prisma";
 const DATA_DIR = path.join(process.cwd(), "data");
 const STORE_FILE = path.join(DATA_DIR, "store.json");
 
+// Helper to enforce strict latency limits on serverless database queries
+export async function withTimeout<T>(promise: Promise<T>, ms = 3500): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`Database query timed out after ${ms}ms`)), ms);
+  });
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+export const SLUG_ALIASES: Record<string, string> = {
+  "premium-poshak": "kamal-poshak",
+  "designer-mukut": "mor-pankh-zari-mukut",
+  "krishna-mala": "navratna-motimala-haar",
+  "laddu-gopal-jhula": "rajwadi-meenakari-jhula",
+  "shringaar-set": "sampoorna-shringaar-deluxe-set",
+};
+
 type StoreData = {
   categories: Category[];
   collections: Collection[];
@@ -26,6 +47,16 @@ type StoreData = {
 };
 
 function ensureStoreFile(): StoreData {
+  // In serverless environments (Vercel / AWS Lambda), the filesystem is read-only
+  if (process.env.VERCEL) {
+    return {
+      categories: initialCategories,
+      collections: initialCollections,
+      products: initialProducts,
+      orders: [],
+    };
+  }
+
   try {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -56,6 +87,7 @@ function ensureStoreFile(): StoreData {
 }
 
 function writeStoreFile(data: StoreData) {
+  if (process.env.VERCEL) return;
   try {
     if (!fs.existsSync(DATA_DIR)) {
       fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -73,13 +105,16 @@ const hasDb = Boolean(process.env.DATABASE_URL);
 export async function getCategories(): Promise<Category[]> {
   if (hasDb) {
     try {
-      const cats = await prisma.category.findMany({
-        where: { isActive: true },
-        orderBy: { displayOrder: "asc" },
-      });
+      const cats = await withTimeout(
+        prisma.category.findMany({
+          where: { isActive: true },
+          orderBy: { displayOrder: "asc" },
+        }),
+        3000
+      );
       return cats;
     } catch (e) {
-      console.warn("DB getCategories failed, using local store:", e);
+      console.warn("DB getCategories failed or timed out, using local fallback:", e);
     }
   }
   const store = ensureStoreFile();
@@ -89,12 +124,15 @@ export async function getCategories(): Promise<Category[]> {
 export async function getAllCategories(): Promise<Category[]> {
   if (hasDb) {
     try {
-      const cats = await prisma.category.findMany({
-        orderBy: { displayOrder: "asc" },
-      });
+      const cats = await withTimeout(
+        prisma.category.findMany({
+          orderBy: { displayOrder: "asc" },
+        }),
+        3000
+      );
       return cats;
     } catch (e) {
-      console.warn("DB getAllCategories failed, using local store:", e);
+      console.warn("DB getAllCategories failed or timed out, using local fallback:", e);
     }
   }
   const store = ensureStoreFile();
@@ -104,10 +142,13 @@ export async function getAllCategories(): Promise<Category[]> {
 export async function getCategoryBySlug(slug: string): Promise<Category | null> {
   if (hasDb) {
     try {
-      const cat = await prisma.category.findUnique({ where: { slug } });
+      const cat = await withTimeout(
+        prisma.category.findUnique({ where: { slug } }),
+        3000
+      );
       if (cat) return cat;
     } catch (e) {
-      console.warn("DB getCategoryBySlug failed, using local store:", e);
+      console.warn("DB getCategoryBySlug failed or timed out, using local fallback:", e);
     }
   }
   const store = ensureStoreFile();
@@ -117,10 +158,13 @@ export async function getCategoryBySlug(slug: string): Promise<Category | null> 
 export async function getCategoryById(id: string): Promise<Category | null> {
   if (hasDb) {
     try {
-      const cat = await prisma.category.findUnique({ where: { id } });
+      const cat = await withTimeout(
+        prisma.category.findUnique({ where: { id } }),
+        3000
+      );
       if (cat) return cat;
     } catch (e) {
-      console.warn("DB getCategoryById failed, using local store:", e);
+      console.warn("DB getCategoryById failed or timed out, using local fallback:", e);
     }
   }
   const store = ensureStoreFile();
@@ -245,17 +289,20 @@ export async function getCategoryProductCounts(): Promise<Record<string, number>
 export async function getCollections(): Promise<Collection[]> {
   if (hasDb) {
     try {
-      const cols = await prisma.collection.findMany({
-        where: { isActive: true },
-        orderBy: { displayOrder: "asc" },
-      });
+      const cols = await withTimeout(
+        prisma.collection.findMany({
+          where: { isActive: true },
+          orderBy: { displayOrder: "asc" },
+        }),
+        3000
+      );
       return cols.map((c) => ({
         ...c,
         image: c.image ?? undefined,
         description: c.description ?? undefined,
       }));
     } catch (e) {
-      console.warn("DB getCollections failed, using local store:", e);
+      console.warn("DB getCollections failed or timed out, using local fallback:", e);
     }
   }
   const store = ensureStoreFile();
@@ -265,16 +312,19 @@ export async function getCollections(): Promise<Collection[]> {
 export async function getAllCollections(): Promise<Collection[]> {
   if (hasDb) {
     try {
-      const cols = await prisma.collection.findMany({
-        orderBy: { displayOrder: "asc" },
-      });
+      const cols = await withTimeout(
+        prisma.collection.findMany({
+          orderBy: { displayOrder: "asc" },
+        }),
+        3000
+      );
       return cols.map((c) => ({
         ...c,
         image: c.image ?? undefined,
         description: c.description ?? undefined,
       }));
     } catch (e) {
-      console.warn("DB getAllCollections failed, using local store:", e);
+      console.warn("DB getAllCollections failed or timed out, using local fallback:", e);
     }
   }
   const store = ensureStoreFile();
@@ -284,7 +334,10 @@ export async function getAllCollections(): Promise<Collection[]> {
 export async function getCollectionBySlug(slug: string): Promise<Collection | null> {
   if (hasDb) {
     try {
-      const col = await prisma.collection.findUnique({ where: { slug } });
+      const col = await withTimeout(
+        prisma.collection.findUnique({ where: { slug } }),
+        3000
+      );
       if (col) {
         return {
           ...col,
@@ -293,7 +346,7 @@ export async function getCollectionBySlug(slug: string): Promise<Collection | nu
         };
       }
     } catch (e) {
-      console.warn("DB getCollectionBySlug failed, using local store:", e);
+      console.warn("DB getCollectionBySlug failed or timed out, using local fallback:", e);
     }
   }
   const store = ensureStoreFile();
@@ -432,92 +485,98 @@ export type ProductFilterOptions = {
 export async function getProducts(options: ProductFilterOptions = {}): Promise<Product[]> {
   if (hasDb) {
     try {
-      const dbProducts = await prisma.product.findMany({
-        where: {
-          isActive: true,
-          ...(options.category
-            ? {
-                category: {
-                  slug: options.category.toLowerCase(),
-                },
-              }
-            : {}),
-          ...(options.collection
-            ? {
-                collections: {
-                  some: {
-                    collection: {
-                      slug: options.collection.toLowerCase(),
+      const catSlug = options.category?.toLowerCase().trim();
+      const colSlug = options.collection?.toLowerCase().trim();
+
+      const dbProducts = await withTimeout(
+        prisma.product.findMany({
+          where: {
+            isActive: true,
+            ...(catSlug
+              ? {
+                  OR: [
+                    { category: { slug: { equals: catSlug, mode: "insensitive" } } },
+                    { category: { name: { equals: options.category, mode: "insensitive" } } },
+                    { categoryId: { equals: catSlug, mode: "insensitive" } },
+                  ],
+                }
+              : {}),
+            ...(colSlug
+              ? {
+                  collections: {
+                    some: {
+                      collection: {
+                        slug: { equals: colSlug, mode: "insensitive" },
+                      },
                     },
                   },
-                },
-              }
-            : {}),
-          ...(options.search
-            ? {
-                OR: [
-                  { name: { contains: options.search, mode: "insensitive" } },
-                  { description: { contains: options.search, mode: "insensitive" } },
-                ],
-              }
-            : {}),
-        },
-        include: {
-          category: true,
-          images: { orderBy: { displayOrder: "asc" } },
-          variants: true,
-          collections: { include: { collection: true } },
-        },
-        orderBy:
-          options.sort === "newest"
-            ? { createdAt: "desc" }
-            : { createdAt: "desc" },
-      });
+                }
+              : {}),
+            ...(options.search
+              ? {
+                  OR: [
+                    { name: { contains: options.search, mode: "insensitive" } },
+                    { description: { contains: options.search, mode: "insensitive" } },
+                  ],
+                }
+              : {}),
+          },
+          include: {
+            category: true,
+            images: { orderBy: { displayOrder: "asc" } },
+            variants: true,
+            collections: { include: { collection: true } },
+          },
+          orderBy:
+            options.sort === "newest"
+              ? { createdAt: "desc" }
+              : { createdAt: "desc" },
+        }),
+        3500
+      );
 
-      if (dbProducts.length > 0) {
-        let mapped: Product[] = dbProducts.map((p) => ({
-          id: p.id,
-          name: p.name,
-          slug: p.slug,
-          categoryId: p.categoryId,
-          categoryName: p.category.name,
-          description: p.description || "",
-          material: p.material || undefined,
-          featured: p.featured,
-          isActive: p.isActive,
-          badge: p.badge || undefined,
-          rating: 4.9,
-          reviewsCount: 50,
-          images: p.images.map((img) => img.imageUrl),
-          variants: p.variants.map((v) => ({
-            id: v.id,
-            productId: v.productId,
-            size: v.size || undefined,
-            colour: v.colour || undefined,
-            price: v.price,
-            discountPrice: v.discountPrice || undefined,
-            stock: v.stock,
-          })),
-          collectionSlugs: p.collections.map((c) => c.collection.slug),
-          createdAt: p.createdAt.toISOString(),
-        }));
+      let mapped: Product[] = dbProducts.map((p) => ({
+        id: p.id,
+        name: p.name,
+        slug: p.slug,
+        categoryId: p.categoryId,
+        categoryName: p.category.name,
+        description: p.description || "",
+        material: p.material || undefined,
+        featured: p.featured,
+        isActive: p.isActive,
+        badge: p.badge || undefined,
+        rating: 4.9,
+        reviewsCount: 50,
+        images: p.images.map((img) => img.imageUrl),
+        variants: p.variants.map((v) => ({
+          id: v.id,
+          productId: v.productId,
+          size: v.size || undefined,
+          colour: v.colour || undefined,
+          price: v.price,
+          discountPrice: v.discountPrice || undefined,
+          stock: v.stock,
+        })),
+        collectionSlugs: p.collections.map((c) => c.collection.slug),
+        createdAt: p.createdAt.toISOString(),
+      }));
 
-        if (options.size) {
-          mapped = mapped.filter((p) =>
-            p.variants.some((v) => v.size === options.size && v.stock > 0)
-          );
-        }
-
-        if (options.sort === "price-asc") {
-          mapped.sort((a, b) => Math.min(...a.variants.map((v) => v.price)) - Math.min(...b.variants.map((v) => v.price)));
-        } else if (options.sort === "price-desc") {
-          mapped.sort((a, b) => Math.min(...b.variants.map((v) => v.price)) - Math.min(...a.variants.map((v) => v.price)));
-        }
-
-        return mapped;
+      if (options.size) {
+        mapped = mapped.filter((p) =>
+          p.variants.some((v) => v.size === options.size && v.stock > 0)
+        );
       }
+
+      if (options.sort === "price-asc") {
+        mapped.sort((a, b) => Math.min(...a.variants.map((v) => v.price)) - Math.min(...b.variants.map((v) => v.price)));
+      } else if (options.sort === "price-desc") {
+        mapped.sort((a, b) => Math.min(...b.variants.map((v) => v.price)) - Math.min(...a.variants.map((v) => v.price)));
+      }
+
+      return mapped;
     } catch (e) {
-      console.warn("DB getProducts failed, using local store:", e);
+      console.warn("DB getProducts failed or timed out, using local fallback:", e);
     }
   }
 
@@ -571,15 +630,18 @@ export async function getProducts(options: ProductFilterOptions = {}): Promise<P
 export async function getAllProductsAdmin(): Promise<Product[]> {
   if (hasDb) {
     try {
-      const dbProducts = await prisma.product.findMany({
-        include: {
-          category: true,
-          images: { orderBy: { displayOrder: "asc" } },
-          variants: true,
-          collections: { include: { collection: true } },
-        },
-        orderBy: { createdAt: "desc" },
-      });
+      const dbProducts = await withTimeout(
+        prisma.product.findMany({
+          include: {
+            category: true,
+            images: { orderBy: { displayOrder: "asc" } },
+            variants: true,
+            collections: { include: { collection: true } },
+          },
+          orderBy: { createdAt: "desc" },
+        }),
+        3000
+      );
       if (dbProducts.length > 0) {
         return dbProducts.map((p) => ({
           id: p.id,
@@ -617,17 +679,28 @@ export async function getAllProductsAdmin(): Promise<Product[]> {
 }
 
 export async function getProductBySlug(slug: string): Promise<Product | null> {
+  const normalizedSlug = slug.toLowerCase().trim();
+  const canonicalSlug = SLUG_ALIASES[normalizedSlug] || normalizedSlug;
+
   if (hasDb) {
     try {
-      const p = await prisma.product.findUnique({
-        where: { slug },
-        include: {
-          category: true,
-          images: { orderBy: { displayOrder: "asc" } },
-          variants: true,
-          collections: { include: { collection: true } },
-        },
-      });
+      const p = await withTimeout(
+        prisma.product.findFirst({
+          where: {
+            OR: [
+              { slug: normalizedSlug },
+              { slug: canonicalSlug },
+            ],
+          },
+          include: {
+            category: true,
+            images: { orderBy: { displayOrder: "asc" } },
+            variants: true,
+            collections: { include: { collection: true } },
+          },
+        }),
+        3000
+      );
       if (p) {
         return {
           id: p.id,
@@ -657,25 +730,32 @@ export async function getProductBySlug(slug: string): Promise<Product | null> {
         };
       }
     } catch (e) {
-      console.warn("DB getProductBySlug failed, using local store:", e);
+      console.warn("DB getProductBySlug failed or timed out, using local fallback:", e);
     }
   }
   const store = ensureStoreFile();
-  return store.products.find((p) => p.slug === slug) || null;
+  return (
+    store.products.find((p) => p.slug === normalizedSlug) ||
+    store.products.find((p) => p.slug === canonicalSlug) ||
+    null
+  );
 }
 
 export async function getProductById(id: string): Promise<Product | null> {
   if (hasDb) {
     try {
-      const p = await prisma.product.findUnique({
-        where: { id },
-        include: {
-          category: true,
-          images: { orderBy: { displayOrder: "asc" } },
-          variants: true,
-          collections: { include: { collection: true } },
-        },
-      });
+      const p = await withTimeout(
+        prisma.product.findUnique({
+          where: { id },
+          include: {
+            category: true,
+            images: { orderBy: { displayOrder: "asc" } },
+            variants: true,
+            collections: { include: { collection: true } },
+          },
+        }),
+        3000
+      );
       if (p) {
         return {
           id: p.id,
@@ -797,10 +877,13 @@ export async function deleteProduct(id: string): Promise<boolean> {
 export async function getOrders(): Promise<Order[]> {
   if (hasDb) {
     try {
-      const dbOrders = await prisma.order.findMany({
-        include: { items: true },
-        orderBy: { createdAt: "desc" },
-      });
+      const dbOrders = await withTimeout(
+        prisma.order.findMany({
+          include: { items: true },
+          orderBy: { createdAt: "desc" },
+        }),
+        3000
+      );
       if (dbOrders.length > 0) {
         return dbOrders.map((o) => ({
           id: o.id,
@@ -828,7 +911,7 @@ export async function getOrders(): Promise<Order[]> {
         }));
       }
     } catch (e) {
-      console.warn("DB getOrders failed, using local store:", e);
+      console.warn("DB getOrders failed or timed out, using local fallback:", e);
     }
   }
   const store = ensureStoreFile();
@@ -840,12 +923,15 @@ export async function getOrders(): Promise<Order[]> {
 export async function getOrderById(id: string): Promise<Order | null> {
   if (hasDb) {
     try {
-      const o = await prisma.order.findFirst({
-        where: {
-          OR: [{ id }, { orderNumber: id }],
-        },
-        include: { items: true },
-      });
+      const o = await withTimeout(
+        prisma.order.findFirst({
+          where: {
+            OR: [{ id }, { orderNumber: id }],
+          },
+          include: { items: true },
+        }),
+        3000
+      );
       if (o) {
         return {
           id: o.id,

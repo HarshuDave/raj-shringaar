@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import MobileMenu from "./MobileMenu";
 import CartDrawer from "./CartDrawer";
 import { useCartStore } from "@/lib/store/cart";
+import { shippingConfig } from "@/lib/config/shipping";
 
 const navigation = [
   { label: "HOME", href: "/" },
@@ -66,7 +67,9 @@ export default function Header() {
         {/* Announcement Bar */}
         <div className="h-8 bg-royal px-4 text-[10px] text-white">
           <div className="mx-auto flex h-full max-w-[1440px] items-center justify-between">
-            <span>Free Shipping on Orders above ₹999</span>
+            <span>
+              Free Shipping on Orders above ₹{shippingConfig.freeShippingThreshold}
+            </span>
 
             <span className="hidden text-gold sm:block">
               ॥ श्री कृष्णाय नमः ॥

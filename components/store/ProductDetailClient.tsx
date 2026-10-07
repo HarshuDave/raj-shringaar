@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Product, ProductVariant } from "@/lib/types";
 import { useCartStore } from "@/lib/store/cart";
+import { shippingConfig } from "@/lib/config/shipping";
 import ProductCard from "./ProductCard";
 
 interface ProductDetailClientProps {
@@ -384,7 +385,7 @@ export default function ProductDetailClient({
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-gold">✦</span>
-                <span>Free Shipping over ₹999</span>
+                <span>Free Shipping over ₹{shippingConfig.freeShippingThreshold}</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-gold">✦</span>

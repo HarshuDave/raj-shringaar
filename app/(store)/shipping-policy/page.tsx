@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { shippingConfig } from "@/lib/config/shipping";
 
 export const metadata = {
   title: "Shipping Policy | Raj Shringaar",
@@ -68,7 +69,7 @@ export default function ShippingPolicyPage() {
             </h2>
             <p>
               We provide <strong>FREE Standard Delivery</strong> across all Indian pin codes for all
-              orders of ₹999 or above. For orders below ₹999, a nominal standard fee of ₹99 applies
+              orders of ₹{shippingConfig.freeShippingThreshold} or above. For orders below ₹{shippingConfig.freeShippingThreshold}, a nominal standard fee of ₹{shippingConfig.standardShippingFee} applies
               to ensure secure packaging.
             </p>
           </div>

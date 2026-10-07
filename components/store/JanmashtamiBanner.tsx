@@ -22,7 +22,7 @@ export default function JanmashtamiBanner() {
           <div className="absolute inset-0 flex items-center">
             <div className="px-8 sm:px-14 lg:px-20 max-w-xl">
               <p className="mb-3 text-[10px] font-medium uppercase tracking-[0.4em] text-gold">
-                Limited Edition ✦ Festive 2024
+                Limited Edition ✦ Sacred Mahotsav Collection
               </p>
 
               <h2 className="mb-5 font-serif text-4xl leading-[1.1] text-white sm:text-5xl lg:text-[56px]">

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { shippingConfig } from "@/lib/config/shipping";
 
 export const metadata = {
   title: "Store Settings | Raj Shringaar Admin",
@@ -71,14 +72,14 @@ export default function AdminSettingsPage() {
           Announcement &amp; Delivery Parameters
         </h2>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
           <div>
             <label className="block font-semibold uppercase tracking-wider text-royal mb-1.5">
               Top Announcement Text
             </label>
             <input
               type="text"
-              defaultValue="Free Shipping on Orders above ₹999"
+              defaultValue={`Free Shipping on Orders above ₹${shippingConfig.freeShippingThreshold}`}
               className="w-full h-11 px-3.5 border border-gold/30 bg-white text-royal outline-none focus:border-gold"
             />
           </div>
@@ -89,12 +90,23 @@ export default function AdminSettingsPage() {
             </label>
             <input
               type="number"
-              defaultValue={999}
+              defaultValue={shippingConfig.freeShippingThreshold}
               className="w-full h-11 px-3.5 border border-gold/30 bg-white text-royal outline-none focus:border-gold font-bold"
             />
           </div>
 
-          <div className="sm:col-span-2">
+          <div>
+            <label className="block font-semibold uppercase tracking-wider text-royal mb-1.5">
+              Standard Shipping Fee (₹)
+            </label>
+            <input
+              type="number"
+              defaultValue={shippingConfig.standardShippingFee}
+              className="w-full h-11 px-3.5 border border-gold/30 bg-white text-royal outline-none focus:border-gold font-bold"
+            />
+          </div>
+
+          <div className="sm:col-span-3">
             <label className="block font-semibold uppercase tracking-wider text-royal mb-1.5">
               Center Sacred Inscription
             </label>
