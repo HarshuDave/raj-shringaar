@@ -14,6 +14,7 @@ import {
   initialProducts,
 } from "./catalog";
 import { prisma } from "@/lib/prisma";
+import { calculateShippingFee } from "@/lib/config/shipping";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const STORE_FILE = path.join(DATA_DIR, "store.json");
@@ -969,132 +970,161 @@ export async function getOrderById(id: string): Promise<Order | null> {
 export async function createOrder(
   orderData: Omit<Order, "id" | "orderNumber" | "createdAt">
 ): Promise<Order> {
-  const store = ensureStoreFile();
-
-  // Inventory validation and stock deduction
-  for (const item of orderData.items) {
-    if (hasDb) {
-      try {
-        const variant = await prisma.productVariant.findUnique({
-          where: { id: item.variantId },
-        });
-        if (variant) {
-          if (variant.stock < item.quantity) {
-            throw new Error(`Insufficient stock for "${item.productName}". Available: ${variant.stock}`);
-          }
-          await prisma.productVariant.update({
-            where: { id: item.variantId },
-            data: { stock: { decrement: item.quantity } },
-          });
-        }
-      } catch (e: any) {
-        console.warn("DB stock decrement failed:", e);
-      }
-    }
-
-    const product = store.products.find((p) => p.id === item.productId);
-    if (product) {
-      const variant = product.variants.find((v) => v.id === item.variantId);
-      if (variant) {
-        variant.stock = Math.max(0, variant.stock - item.quantity);
-      }
-    }
+  // STRICT TRANSACTIONAL BOUNDARY:
+  // Fallback data is strictly restricted to read-only storefront browsing.
+  // Checkout, payment amount calculation, stock validation, order creation,
+  // and inventory updates REQUIRE an active, verified PostgreSQL connection.
+  if (!hasDb) {
+    throw new Error(
+      "Live database connection unavailable. Order processing and payment validation require an active database."
+    );
   }
 
   const orderId = `ord_${Date.now()}`;
   const orderNumber = `RS-${Math.floor(100000 + Math.random() * 900000)}`;
 
-  if (hasDb) {
-    try {
-      await prisma.order.create({
-        data: {
-          id: orderId,
-          orderNumber,
-          customerName: orderData.customerName,
-          customerEmail: orderData.customerEmail,
-          customerPhone: orderData.customerPhone,
-          totalAmount: orderData.totalAmount,
-          orderStatus: "Confirmed",
-          paymentStatus: "Paid",
-          paymentMethod: orderData.paymentMethod,
-          shippingAddress: orderData.shippingAddress as any,
-          items: {
-            create: orderData.items.map((i) => ({
-              productId: i.productId,
-              variantId: i.variantId,
-              productName: i.productName,
-              size: i.size,
-              colour: i.colour,
-              price: i.price,
-              quantity: i.quantity,
-              image: i.image,
-            })),
-          },
-        },
+  // Execute inside an ACID transaction to guarantee stock deduction, verified prices, and order creation occur atomically
+  return await prisma.$transaction(async (tx) => {
+    let verifiedSubtotal = 0;
+
+    // 1. Strict Stock Validation & Price Verification against live PostgreSQL
+    for (const item of orderData.items) {
+      const dbVariant = await tx.productVariant.findUnique({
+        where: { id: item.variantId },
       });
-    } catch (e) {
-      console.warn("DB order creation failed:", e);
+
+      if (!dbVariant) {
+        throw new Error(
+          `Product variant "${item.productName}" (ID: ${item.variantId}) was not found in the live database.`
+        );
+      }
+
+      if (dbVariant.stock < item.quantity) {
+        throw new Error(
+          `Insufficient stock for "${item.productName}". Available: ${dbVariant.stock}, Requested: ${item.quantity}.`
+        );
+      }
+
+      // Authoritative price directly from PostgreSQL row
+      verifiedSubtotal += dbVariant.price * item.quantity;
+
+      // Atomic stock decrement
+      await tx.productVariant.update({
+        where: { id: item.variantId },
+        data: { stock: { decrement: item.quantity } },
+      });
     }
-  }
 
-  const newOrder: Order = {
-    ...orderData,
-    id: orderId,
-    orderNumber,
-    createdAt: new Date().toISOString(),
-  };
+    // 2. Authoritative Shipping Fee Calculation based on verified subtotal
+    const verifiedShippingFee = calculateShippingFee(verifiedSubtotal);
+    const verifiedTotalAmount = verifiedSubtotal + verifiedShippingFee;
 
-  store.orders.unshift(newOrder);
-  writeStoreFile(store);
-  return newOrder;
+    // 3. Insert confirmed Order into PostgreSQL
+    const dbOrder = await tx.order.create({
+      data: {
+        id: orderId,
+        orderNumber,
+        customerName: orderData.customerName,
+        customerEmail: orderData.customerEmail,
+        customerPhone: orderData.customerPhone,
+        totalAmount: verifiedTotalAmount,
+        orderStatus: "Confirmed",
+        paymentStatus: "Paid",
+        paymentMethod: orderData.paymentMethod,
+        shippingAddress: orderData.shippingAddress as any,
+        items: {
+          create: orderData.items.map((i) => ({
+            productId: i.productId,
+            variantId: i.variantId,
+            productName: i.productName,
+            size: i.size,
+            colour: i.colour,
+            price: i.price,
+            quantity: i.quantity,
+            image: i.image,
+          })),
+        },
+      },
+      include: { items: true },
+    });
+
+    return {
+      id: dbOrder.id,
+      orderNumber: dbOrder.orderNumber,
+      customerName: dbOrder.customerName,
+      customerEmail: dbOrder.customerEmail,
+      customerPhone: dbOrder.customerPhone,
+      shippingAddress: dbOrder.shippingAddress as any,
+      items: dbOrder.items.map((i) => ({
+        id: i.id,
+        productId: i.productId,
+        variantId: i.variantId,
+        productName: i.productName,
+        size: i.size || undefined,
+        colour: i.colour || undefined,
+        price: i.price,
+        quantity: i.quantity,
+        image: i.image || "",
+      })),
+      totalAmount: dbOrder.totalAmount,
+      orderStatus: dbOrder.orderStatus as OrderStatus,
+      paymentStatus: dbOrder.paymentStatus as any,
+      paymentMethod: dbOrder.paymentMethod,
+      createdAt: dbOrder.createdAt.toISOString(),
+    };
+  });
 }
 
 export async function updateOrderStatus(
   orderId: string,
   status: OrderStatus
 ): Promise<Order | null> {
-  if (hasDb) {
-    try {
-      await prisma.order.update({
-        where: { id: orderId },
-        data: { orderStatus: status as any },
-      });
-    } catch (e) {
-      console.warn("DB updateOrderStatus failed:", e);
-    }
+  if (!hasDb) {
+    throw new Error("Live database connection required for order status updates.");
   }
 
-  const store = ensureStoreFile();
-  const order = store.orders.find((o) => o.id === orderId);
-  if (order) {
-    order.orderStatus = status;
-    writeStoreFile(store);
-    return order;
-  }
-  return null;
+  const updated = await prisma.order.update({
+    where: { id: orderId },
+    data: { orderStatus: status as any },
+    include: { items: true },
+  });
+
+  return {
+    id: updated.id,
+    orderNumber: updated.orderNumber,
+    customerName: updated.customerName,
+    customerEmail: updated.customerEmail,
+    customerPhone: updated.customerPhone,
+    shippingAddress: updated.shippingAddress as any,
+    items: updated.items.map((i) => ({
+      id: i.id,
+      productId: i.productId,
+      variantId: i.variantId,
+      productName: i.productName,
+      size: i.size || undefined,
+      colour: i.colour || undefined,
+      price: i.price,
+      quantity: i.quantity,
+      image: i.image || "",
+    })),
+    totalAmount: updated.totalAmount,
+    orderStatus: updated.orderStatus as OrderStatus,
+    paymentStatus: updated.paymentStatus as any,
+    paymentMethod: updated.paymentMethod,
+    createdAt: updated.createdAt.toISOString(),
+  };
 }
 
 export async function updateStock(variantId: string, newStock: number): Promise<boolean> {
-  if (hasDb) {
-    try {
-      await prisma.productVariant.update({
-        where: { id: variantId },
-        data: { stock: newStock },
-      });
-      return true;
-    } catch (e) {
-      console.warn("DB updateStock failed:", e);
-    }
+  if (!hasDb) {
+    throw new Error("Live database connection required for stock updates.");
   }
-  const store = ensureStoreFile();
-  for (const product of store.products) {
-    const v = product.variants.find((v) => v.id === variantId);
-    if (v) {
-      v.stock = newStock;
-      writeStoreFile(store);
-      return true;
-    }
-  }
-  return false;
+
+  await prisma.productVariant.update({
+    where: { id: variantId },
+    data: { stock: newStock },
+  });
+
+  return true;
 }
 
