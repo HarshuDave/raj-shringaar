@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { checkAdminAuth } from "@/app/actions/admin-auth";
 import {
   saveCollection,
   deleteCollection,
@@ -11,9 +12,14 @@ import { Collection } from "@/lib/types";
 
 export async function createCollectionAction(formData: FormData) {
   try {
+    const isAuth = await checkAdminAuth();
+    if (!isAuth) {
+      return { success: false, error: "Unauthorized: Admin session required." };
+    }
+
     const name = (formData.get("name") as string)?.trim();
-    if (!name) {
-      return { success: false, error: "Collection name is required" };
+    if (!name || name.length < 2) {
+      return { success: false, error: "Collection name must be at least 2 characters long." };
     }
 
     let slug = (formData.get("slug") as string)?.trim();
@@ -63,6 +69,11 @@ export async function createCollectionAction(formData: FormData) {
 
 export async function deleteCollectionAction(id: string) {
   try {
+    const isAuth = await checkAdminAuth();
+    if (!isAuth) {
+      return { success: false, error: "Unauthorized: Admin session required." };
+    }
+
     const res = await deleteCollection(id);
     if (!res.success) {
       return { success: false, error: res.error || "Cannot delete collection" };
@@ -83,6 +94,11 @@ export async function deleteCollectionAction(id: string) {
 
 export async function toggleCollectionStatusAction(id: string, isActive: boolean) {
   try {
+    const isAuth = await checkAdminAuth();
+    if (!isAuth) {
+      return { success: false, error: "Unauthorized: Admin session required." };
+    }
+
     await toggleCollectionStatus(id, isActive);
 
     revalidatePath("/admin/collections");

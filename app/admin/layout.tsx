@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { logoutAdminAction } from "@/app/actions/admin-auth";
+import { logoutAdminAction, checkAdminAuth } from "@/app/actions/admin-auth";
 
 const navItems = [
   { label: "Dashboard", href: "/admin/dashboard", icon: "❖" },
@@ -12,11 +12,18 @@ const navItems = [
   { label: "Settings", href: "/admin/settings", icon: "⚙️" },
 ];
 
-export default function AdminLayout({
+export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const isAuthenticated = await checkAdminAuth();
+
+  // If not authenticated (e.g. on /admin/login), render children without admin sidebar
+  if (!isAuthenticated) {
+    return <div className="min-h-screen bg-royal">{children}</div>;
+  }
+
   return (
     <div className="min-h-screen flex bg-ivory text-royal">
       {/* Royal Navy Sidebar */}

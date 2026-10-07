@@ -13,13 +13,23 @@ export default function InventoryStockInput({
   const [stock, setStock] = useState(initialStock);
   const [isPending, startTransition] = useTransition();
   const [savedNotice, setSavedNotice] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleUpdate = () => {
+    setErrorMessage(null);
+    if (stock < 0 || !Number.isInteger(stock)) {
+      setErrorMessage("Must be ≥ 0");
+      setTimeout(() => setErrorMessage(null), 3000);
+      return;
+    }
     startTransition(async () => {
       const res = await updateStockAction(variantId, stock);
       if (res.success) {
         setSavedNotice(true);
         setTimeout(() => setSavedNotice(false), 2000);
+      } else {
+        setErrorMessage(res.error || "Failed");
+        setTimeout(() => setErrorMessage(null), 3000);
       }
     });
   };
@@ -42,6 +52,11 @@ export default function InventoryStockInput({
         {isPending ? "..." : "Save"}
       </button>
       {savedNotice && <span className="text-xs text-emerald-600 font-bold">✓</span>}
+      {errorMessage && (
+        <span className="text-[10px] text-red-600 font-semibold" title={errorMessage}>
+          ✕ {errorMessage}
+        </span>
+      )}
     </div>
   );
 }

@@ -109,6 +109,47 @@ export default function ProductForm({
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setErrorMessage(null);
+
+    if (variants.length === 0) {
+      setErrorMessage("At least one product variant must be configured.");
+      return;
+    }
+
+    const seen = new Set<string>();
+    for (const v of variants) {
+      const sizeKey = (v.size || "").trim().toLowerCase();
+      const colourKey = (v.colour || "").trim().toLowerCase();
+      const comboKey = `${sizeKey}|${colourKey}`;
+
+      if (seen.has(comboKey)) {
+        setErrorMessage(
+          `Duplicate variant detected: Size "${v.size || "Standard"}" and Colour "${v.colour || "Standard"}". Each size and colour combination must be unique.`
+        );
+        return;
+      }
+      seen.add(comboKey);
+
+      const price = Number(v.price);
+      if (isNaN(price) || price <= 0) {
+        setErrorMessage("Each variant must have a valid selling price greater than ₹0.");
+        return;
+      }
+
+      const stock = Number(v.stock);
+      if (isNaN(stock) || stock < 0 || !Number.isInteger(stock)) {
+        setErrorMessage("Variant stock must be a non-negative whole number (0 or higher).");
+        return;
+      }
+
+      const discountPrice = Number(v.discountPrice);
+      if (discountPrice && discountPrice > 0 && discountPrice < price) {
+        setErrorMessage(
+          `Original MRP (₹${discountPrice}) cannot be lower than the selling price (₹${price}).`
+        );
+        return;
+      }
+    }
+
     const formElement = e.currentTarget;
     const formData = new FormData(formElement);
 
@@ -139,7 +180,7 @@ export default function ProductForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
       {errorMessage && (
-        <div className="p-4 bg-red-50 border border-red-300 text-red-800 text-xs">
+        <div className="p-4 bg-red-50 border border-red-300 text-red-800 text-xs font-semibold">
           {errorMessage}
         </div>
       )}
@@ -333,8 +374,8 @@ export default function ProductForm({
               <tr>
                 <th className="py-2.5 px-3">Size (0-6)</th>
                 <th className="py-2.5 px-3">Colour (Optional)</th>
-                <th className="py-2.5 px-3">Price (₹) *</th>
-                <th className="py-2.5 px-3">MRP / Discount (₹)</th>
+                <th className="py-2.5 px-3">Selling Price (₹) *</th>
+                <th className="py-2.5 px-3">Original MRP (₹)</th>
                 <th className="py-2.5 px-3">Stock Units *</th>
                 <th className="py-2.5 px-3 text-right">Remove</th>
               </tr>

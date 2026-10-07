@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { checkAdminAuth } from "@/app/actions/admin-auth";
 import {
   saveCategory,
   deleteCategory,
@@ -11,9 +12,14 @@ import { Category } from "@/lib/types";
 
 export async function createCategoryAction(formData: FormData) {
   try {
+    const isAuth = await checkAdminAuth();
+    if (!isAuth) {
+      return { success: false, error: "Unauthorized: Admin session required." };
+    }
+
     const name = (formData.get("name") as string)?.trim();
-    if (!name) {
-      return { success: false, error: "Category name is required" };
+    if (!name || name.length < 2) {
+      return { success: false, error: "Category name must be at least 2 characters long." };
     }
 
     // Auto-generate slug if not specified or clean existing
@@ -61,6 +67,11 @@ export async function createCategoryAction(formData: FormData) {
 
 export async function deleteCategoryAction(id: string) {
   try {
+    const isAuth = await checkAdminAuth();
+    if (!isAuth) {
+      return { success: false, error: "Unauthorized: Admin session required." };
+    }
+
     const res = await deleteCategory(id);
     if (!res.success) {
       return { success: false, error: res.error || "Cannot delete category" };
@@ -81,6 +92,11 @@ export async function deleteCategoryAction(id: string) {
 
 export async function toggleCategoryStatusAction(id: string, isActive: boolean) {
   try {
+    const isAuth = await checkAdminAuth();
+    if (!isAuth) {
+      return { success: false, error: "Unauthorized: Admin session required." };
+    }
+
     await toggleCategoryStatus(id, isActive);
 
     revalidatePath("/admin/categories");

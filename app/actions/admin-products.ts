@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { checkAdminAuth } from "@/app/actions/admin-auth";
 import {
   saveProduct,
   deleteProduct,
@@ -11,10 +12,20 @@ import {
   updateStock,
 } from "@/lib/data/repository";
 import { Product, ProductVariant } from "@/lib/types";
+import { validateVariants } from "@/lib/validation/variants";
 
 export async function createProductAction(formData: FormData) {
   try {
-    const name = formData.get("name") as string;
+    const isAuth = await checkAdminAuth();
+    if (!isAuth) {
+      return { success: false, error: "Unauthorized: Admin session required." };
+    }
+
+    const name = (formData.get("name") as string)?.trim();
+    if (!name || name.length < 2) {
+      return { success: false, error: "Product name must be at least 2 characters long." };
+    }
+
     let categoryId = (formData.get("categoryId") as string)?.trim();
     let categoryName = (formData.get("categoryName") as string)?.trim();
 
@@ -37,16 +48,16 @@ export async function createProductAction(formData: FormData) {
       categoryName = "Poshak";
     }
 
-    const description = (formData.get("description") as string) || "";
-    const material = (formData.get("material") as string) || "";
+    const description = (formData.get("description") as string)?.trim() || "";
+    const material = (formData.get("material") as string)?.trim() || "";
     const featured = formData.get("featured") === "true";
     const isActive = formData.get("isActive") !== "false";
-    const badge = (formData.get("badge") as string) || undefined;
-    const image1 = (formData.get("image1") as string) || "/products/premium-poshak.png";
-    const image2 = (formData.get("image2") as string) || "";
+    const badge = (formData.get("badge") as string)?.trim() || undefined;
+    const image1 = (formData.get("image1") as string)?.trim() || "/products/premium-poshak.png";
+    const image2 = (formData.get("image2") as string)?.trim() || "";
 
     // Generate slug automatically
-    const slug = name
+    const slugBase = name
       .toLowerCase()
       .trim()
       .replace(/[^a-z0-9]+/g, "-")
@@ -68,26 +79,18 @@ export async function createProductAction(formData: FormData) {
 
     // Parse variants JSON passed from client form
     const variantsRaw = formData.get("variants") as string;
-    let variants: ProductVariant[] = [];
-
+    let rawVariants: any[] = [];
     if (variantsRaw) {
       try {
-        variants = JSON.parse(variantsRaw);
+        rawVariants = JSON.parse(variantsRaw);
       } catch (e) {
-        console.error("Variants parse error", e);
+        return { success: false, error: "Malformed variant data." };
       }
     }
 
-    if (variants.length === 0) {
-      variants = [
-        {
-          id: `var_${Date.now()}_0`,
-          productId: `prod_${Date.now()}`,
-          size: "2",
-          price: 499,
-          stock: 10,
-        },
-      ];
+    const validation = validateVariants(rawVariants);
+    if (!validation.success || !validation.cleanVariants) {
+      return { success: false, error: validation.error || "Invalid variant data." };
     }
 
     const productId = `prod_${Date.now()}`;
@@ -97,7 +100,7 @@ export async function createProductAction(formData: FormData) {
     const newProduct: Product = {
       id: productId,
       name,
-      slug: `${slug}-${Math.floor(100 + Math.random() * 900)}`,
+      slug: `${slugBase}-${Math.floor(100 + Math.random() * 900)}`,
       categoryId,
       categoryName,
       description,
@@ -108,9 +111,8 @@ export async function createProductAction(formData: FormData) {
       rating: 5.0,
       reviewsCount: 1,
       images,
-      variants: variants.map((v, i) => ({
+      variants: validation.cleanVariants.map((v) => ({
         ...v,
-        id: v.id || `var_${Date.now()}_${i}`,
         productId,
       })),
       collectionSlugs,
@@ -134,14 +136,23 @@ export async function createProductAction(formData: FormData) {
 
 export async function deleteProductAction(productId: string) {
   try {
-    await deleteProduct(productId);
+    const isAuth = await checkAdminAuth();
+    if (!isAuth) {
+      return { success: false, error: "Unauthorized: Admin session required." };
+    }
+
+    const res = await deleteProduct(productId);
+    if (!res.success) {
+      return { success: false, error: res.error || "Cannot delete product." };
+    }
+
     revalidatePath("/admin/products");
     revalidatePath("/admin/inventory");
     revalidatePath("/admin/categories");
     revalidatePath("/admin/collections");
     revalidatePath("/shop");
     revalidatePath("/");
-    return { success: true };
+    return { success: true, message: res.error };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
@@ -149,6 +160,15 @@ export async function deleteProductAction(productId: string) {
 
 export async function updateStockAction(variantId: string, newStock: number) {
   try {
+    const isAuth = await checkAdminAuth();
+    if (!isAuth) {
+      return { success: false, error: "Unauthorized: Admin session required." };
+    }
+
+    if (typeof newStock !== "number" || isNaN(newStock) || newStock < 0 || !Number.isInteger(newStock)) {
+      return { success: false, error: "Stock must be a non-negative whole number (0 or higher)." };
+    }
+
     const allProducts = await getAllProductsAdmin();
     for (const p of allProducts) {
       const v = p.variants.find((v) => v.id === variantId);
@@ -169,12 +189,21 @@ export async function updateStockAction(variantId: string, newStock: number) {
 
 export async function updateProductAction(productId: string, formData: FormData) {
   try {
+    const isAuth = await checkAdminAuth();
+    if (!isAuth) {
+      return { success: false, error: "Unauthorized: Admin session required." };
+    }
+
     const existing = await getProductById(productId);
     if (!existing) {
       return { success: false, error: "Product not found" };
     }
 
-    const name = formData.get("name") as string;
+    const name = (formData.get("name") as string)?.trim();
+    if (!name || name.length < 2) {
+      return { success: false, error: "Product name must be at least 2 characters long." };
+    }
+
     let categoryId = (formData.get("categoryId") as string)?.trim();
     let categoryName = (formData.get("categoryName") as string)?.trim();
 
@@ -198,12 +227,12 @@ export async function updateProductAction(productId: string, formData: FormData)
       categoryName = existing.categoryName;
     }
 
-    const description = (formData.get("description") as string) || "";
-    const material = (formData.get("material") as string) || "";
+    const description = (formData.get("description") as string)?.trim() || "";
+    const material = (formData.get("material") as string)?.trim() || "";
     const featured = formData.get("featured") === "true";
     const isActive = formData.get("isActive") !== "false";
-    const badge = (formData.get("badge") as string) || undefined;
-    const image1 = (formData.get("image1") as string) || existing.images[0] || "/products/premium-poshak.png";
+    const badge = (formData.get("badge") as string)?.trim() || undefined;
+    const image1 = (formData.get("image1") as string)?.trim() || existing.images[0] || "/products/premium-poshak.png";
 
     // Parse collections
     const collectionSlugsRaw = formData.get("collectionSlugs") as string;
@@ -217,21 +246,18 @@ export async function updateProductAction(productId: string, formData: FormData)
     }
 
     const variantsRaw = formData.get("variants") as string;
-    let variants: ProductVariant[] = existing.variants;
-
+    let rawVariants: any[] = existing.variants;
     if (variantsRaw) {
       try {
-        const parsed = JSON.parse(variantsRaw);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          variants = parsed.map((v: any, i: number) => ({
-            ...v,
-            id: v.id || `var_${Date.now()}_${i}`,
-            productId,
-          }));
-        }
+        rawVariants = JSON.parse(variantsRaw);
       } catch (e) {
-        console.error("Variants parse error", e);
+        return { success: false, error: "Malformed variant data." };
       }
+    }
+
+    const validation = validateVariants(rawVariants);
+    if (!validation.success || !validation.cleanVariants) {
+      return { success: false, error: validation.error || "Invalid variant data." };
     }
 
     const updatedProduct: Product = {
@@ -245,7 +271,10 @@ export async function updateProductAction(productId: string, formData: FormData)
       isActive,
       badge,
       images: [image1, ...existing.images.slice(1)],
-      variants,
+      variants: validation.cleanVariants.map((v) => ({
+        ...v,
+        productId,
+      })),
       collectionSlugs,
     };
 

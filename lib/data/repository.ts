@@ -173,92 +173,64 @@ export async function getCategoryById(id: string): Promise<Category | null> {
 }
 
 export async function saveCategory(category: Category): Promise<Category> {
+  if (!hasDb) {
+    throw new Error("Live database connection required to save categories.");
+  }
+
   const catId = category.id || `cat-${category.slug || Date.now()}`;
   const prepared: Category = {
     ...category,
     id: catId,
   };
 
-  if (hasDb) {
-    try {
-      await prisma.category.upsert({
-        where: { slug: prepared.slug },
-        update: {
-          name: prepared.name,
-          image: prepared.image,
-          displayOrder: prepared.displayOrder,
-          isActive: prepared.isActive,
-        },
-        create: {
-          id: prepared.id,
-          name: prepared.name,
-          slug: prepared.slug,
-          image: prepared.image,
-          displayOrder: prepared.displayOrder,
-          isActive: prepared.isActive,
-        },
-      });
-    } catch (e) {
-      console.warn("DB saveCategory failed:", e);
-    }
-  }
-  const store = ensureStoreFile();
-  const existingIdx = store.categories.findIndex((c) => c.id === prepared.id || c.slug === prepared.slug);
-  if (existingIdx >= 0) {
-    store.categories[existingIdx] = prepared;
-  } else {
-    store.categories.push(prepared);
-  }
-  writeStoreFile(store);
+  await prisma.category.upsert({
+    where: { slug: prepared.slug },
+    update: {
+      name: prepared.name,
+      image: prepared.image,
+      displayOrder: prepared.displayOrder,
+      isActive: prepared.isActive,
+    },
+    create: {
+      id: prepared.id,
+      name: prepared.name,
+      slug: prepared.slug,
+      image: prepared.image,
+      displayOrder: prepared.displayOrder,
+      isActive: prepared.isActive,
+    },
+  });
+
   return prepared;
 }
 
 export async function deleteCategory(id: string): Promise<{ success: boolean; error?: string }> {
-  if (hasDb) {
-    try {
-      const productCount = await prisma.product.count({ where: { categoryId: id } });
-      if (productCount > 0) {
-        return {
-          success: false,
-          error: `Cannot delete: ${productCount} product(s) are assigned to this category. Please reassign or delete the products first.`,
-        };
-      }
-      await prisma.category.delete({ where: { id } });
-    } catch (e: any) {
-      console.warn("DB deleteCategory failed:", e);
-      return { success: false, error: e.message || "Failed to delete category from database" };
-    }
+  if (!hasDb) {
+    throw new Error("Live database connection required to delete categories.");
   }
-  const store = ensureStoreFile();
-  const productCount = store.products.filter((p) => p.categoryId === id).length;
+
+  const productCount = await prisma.product.count({ where: { categoryId: id } });
   if (productCount > 0) {
     return {
       success: false,
-      error: `Cannot delete: ${productCount} product(s) are assigned to this category.`,
+      error: `Cannot delete: ${productCount} product(s) are assigned to this category. Please reassign or delete the products first.`,
     };
   }
-  store.categories = store.categories.filter((c) => c.id !== id);
-  writeStoreFile(store);
+
+  await prisma.category.delete({ where: { id } });
   return { success: true };
 }
 
 export async function toggleCategoryStatus(id: string, isActive: boolean): Promise<boolean> {
-  if (hasDb) {
-    try {
-      await prisma.category.update({
-        where: { id },
-        data: { isActive },
-      });
-    } catch (e) {
-      console.warn("DB toggleCategoryStatus failed:", e);
-    }
+  if (!hasDb) {
+    throw new Error("Live database connection required to update category status.");
   }
-  const store = ensureStoreFile();
-  const cat = store.categories.find((c) => c.id === id);
-  if (cat) {
-    cat.isActive = isActive;
-    writeStoreFile(store);
-  }
+
+  await prisma.category.update({
+    where: { id },
+    data: { isActive },
+  });
+
   return true;
 }
 
@@ -374,81 +346,59 @@ export async function getCollectionById(id: string): Promise<Collection | null> 
 }
 
 export async function saveCollection(collection: Collection): Promise<Collection> {
+  if (!hasDb) {
+    throw new Error("Live database connection required to save collections.");
+  }
+
   const colId = collection.id || `col-${collection.slug || Date.now()}`;
   const prepared: Collection = {
     ...collection,
     id: colId,
   };
 
-  if (hasDb) {
-    try {
-      await prisma.collection.upsert({
-        where: { slug: prepared.slug },
-        update: {
-          name: prepared.name,
-          image: prepared.image ?? null,
-          description: prepared.description ?? null,
-          displayOrder: prepared.displayOrder,
-          isActive: prepared.isActive,
-        },
-        create: {
-          id: prepared.id,
-          name: prepared.name,
-          slug: prepared.slug,
-          image: prepared.image ?? null,
-          description: prepared.description ?? null,
-          displayOrder: prepared.displayOrder,
-          isActive: prepared.isActive,
-        },
-      });
-    } catch (e) {
-      console.warn("DB saveCollection failed:", e);
-    }
-  }
-  const store = ensureStoreFile();
-  const existingIdx = store.collections.findIndex((c) => c.id === prepared.id || c.slug === prepared.slug);
-  if (existingIdx >= 0) {
-    store.collections[existingIdx] = prepared;
-  } else {
-    store.collections.push(prepared);
-  }
-  writeStoreFile(store);
+  await prisma.collection.upsert({
+    where: { slug: prepared.slug },
+    update: {
+      name: prepared.name,
+      image: prepared.image ?? null,
+      description: prepared.description ?? null,
+      displayOrder: prepared.displayOrder,
+      isActive: prepared.isActive,
+    },
+    create: {
+      id: prepared.id,
+      name: prepared.name,
+      slug: prepared.slug,
+      image: prepared.image ?? null,
+      description: prepared.description ?? null,
+      displayOrder: prepared.displayOrder,
+      isActive: prepared.isActive,
+    },
+  });
+
   return prepared;
 }
 
 export async function deleteCollection(id: string): Promise<{ success: boolean; error?: string }> {
-  if (hasDb) {
-    try {
-      // Prisma schema has onDelete: Cascade on ProductCollection for collectionId
-      await prisma.collection.delete({ where: { id } });
-    } catch (e: any) {
-      console.warn("DB deleteCollection failed:", e);
-      return { success: false, error: e.message || "Failed to delete collection from database" };
-    }
+  if (!hasDb) {
+    throw new Error("Live database connection required to delete collections.");
   }
-  const store = ensureStoreFile();
-  store.collections = store.collections.filter((c) => c.id !== id);
-  writeStoreFile(store);
+
+  // Prisma schema has onDelete: Cascade on ProductCollection for collectionId
+  await prisma.collection.delete({ where: { id } });
   return { success: true };
 }
 
 export async function toggleCollectionStatus(id: string, isActive: boolean): Promise<boolean> {
-  if (hasDb) {
-    try {
-      await prisma.collection.update({
-        where: { id },
-        data: { isActive },
-      });
-    } catch (e) {
-      console.warn("DB toggleCollectionStatus failed:", e);
-    }
+  if (!hasDb) {
+    throw new Error("Live database connection required to update collection status.");
   }
-  const store = ensureStoreFile();
-  const col = store.collections.find((c) => c.id === id);
-  if (col) {
-    col.isActive = isActive;
-    writeStoreFile(store);
-  }
+
+  await prisma.collection.update({
+    where: { id },
+    data: { isActive },
+  });
+
   return true;
 }
 
@@ -794,83 +744,111 @@ export async function getProductById(id: string): Promise<Product | null> {
 }
 
 export async function saveProduct(product: Product): Promise<Product> {
-  if (hasDb) {
-    try {
-      await prisma.product.upsert({
-        where: { id: product.id },
+  if (!hasDb) {
+    throw new Error("Live database connection required to save products.");
+  }
+
+  // Atomically upsert product and its variants
+  await prisma.$transaction(async (tx) => {
+    await tx.product.upsert({
+      where: { id: product.id },
+      update: {
+        name: product.name,
+        slug: product.slug,
+        categoryId: product.categoryId,
+        description: product.description,
+        material: product.material,
+        featured: product.featured,
+        isActive: product.isActive,
+        badge: product.badge,
+      },
+      create: {
+        id: product.id,
+        name: product.name,
+        slug: product.slug,
+        categoryId: product.categoryId,
+        description: product.description,
+        material: product.material,
+        featured: product.featured,
+        isActive: product.isActive,
+        badge: product.badge,
+      },
+    });
+
+    // Update variants
+    for (const v of product.variants) {
+      await tx.productVariant.upsert({
+        where: { id: v.id },
         update: {
-          name: product.name,
-          slug: product.slug,
-          categoryId: product.categoryId,
-          description: product.description,
-          material: product.material,
-          featured: product.featured,
-          isActive: product.isActive,
-          badge: product.badge,
+          size: v.size,
+          colour: v.colour,
+          price: v.price,
+          discountPrice: v.discountPrice,
+          stock: v.stock,
         },
         create: {
-          id: product.id,
-          name: product.name,
-          slug: product.slug,
-          categoryId: product.categoryId,
-          description: product.description,
-          material: product.material,
-          featured: product.featured,
-          isActive: product.isActive,
-          badge: product.badge,
+          id: v.id,
+          productId: product.id,
+          size: v.size,
+          colour: v.colour,
+          price: v.price,
+          discountPrice: v.discountPrice,
+          stock: v.stock,
         },
       });
+    }
 
-      // Update variants
-      for (const v of product.variants) {
-        await prisma.productVariant.upsert({
-          where: { id: v.id },
-          update: {
-            size: v.size,
-            colour: v.colour,
-            price: v.price,
-            discountPrice: v.discountPrice,
-            stock: v.stock,
-          },
-          create: {
-            id: v.id,
+    // Upsert primary image if present
+    if (product.images && product.images.length > 0) {
+      const primaryImage = product.images[0];
+      const existingImg = await tx.productImage.findFirst({
+        where: { productId: product.id },
+      });
+      if (existingImg) {
+        await tx.productImage.update({
+          where: { id: existingImg.id },
+          data: { imageUrl: primaryImage },
+        });
+      } else {
+        await tx.productImage.create({
+          data: {
             productId: product.id,
-            size: v.size,
-            colour: v.colour,
-            price: v.price,
-            discountPrice: v.discountPrice,
-            stock: v.stock,
+            imageUrl: primaryImage,
+            displayOrder: 0,
           },
         });
       }
-    } catch (e) {
-      console.warn("DB saveProduct failed:", e);
     }
-  }
+  });
 
-  const store = ensureStoreFile();
-  const existingIdx = store.products.findIndex((p) => p.id === product.id);
-  if (existingIdx >= 0) {
-    store.products[existingIdx] = product;
-  } else {
-    store.products.push(product);
-  }
-  writeStoreFile(store);
   return product;
 }
 
-export async function deleteProduct(id: string): Promise<boolean> {
-  if (hasDb) {
-    try {
-      await prisma.product.delete({ where: { id } });
-    } catch (e) {
-      console.warn("DB deleteProduct failed:", e);
-    }
+export async function deleteProduct(id: string): Promise<{ success: boolean; error?: string }> {
+  if (!hasDb) {
+    throw new Error("Live database connection required to delete products.");
   }
-  const store = ensureStoreFile();
-  store.products = store.products.filter((p) => p.id !== id);
-  writeStoreFile(store);
-  return true;
+
+  // Check if any order references this product to prevent corrupting order history
+  const orderCount = await prisma.orderItem.count({ where: { productId: id } });
+  if (orderCount > 0) {
+    await prisma.product.update({
+      where: { id },
+      data: { isActive: false },
+    });
+    return {
+      success: true,
+      error: `Product has ${orderCount} existing order(s). It has been deactivated to preserve order history.`,
+    };
+  }
+
+  // If no orders exist, delete variants and product safely
+  await prisma.productVariant.deleteMany({ where: { productId: id } });
+  await prisma.productImage.deleteMany({ where: { productId: id } });
+  await prisma.productCollection.deleteMany({ where: { productId: id } });
+  await prisma.product.delete({ where: { id } });
+
+  return { success: true };
 }
 
 // ----------------- Orders & Inventory -----------------
