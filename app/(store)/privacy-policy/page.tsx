@@ -55,7 +55,7 @@ export default function PrivacyPolicyPage() {
             </h2>
             <p>
               All online payments are processed through RBI-approved, PCI-DSS compliant payment
-              gateways (such as Razorpay). Raj Shringaar never stores your bank account, credit card,
+              gateways. Raj Shringaar never stores your bank account, credit card,
               or UPI credentials on its servers.
             </p>
           </div>

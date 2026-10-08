@@ -52,7 +52,7 @@ export default async function ShopPage({
           </h1>
           <p className="mt-2 text-xs sm:text-sm text-royal/70 max-w-2xl">
             Pure devotional craftsmanship for Thakurji. Explore handcrafted Poshak,
-            Mukut, Mala, and accessories for Laddu Gopal.
+            Mukut, Mala, and Shringaar for Laddu Gopal.
           </p>
         </div>
 

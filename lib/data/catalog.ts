@@ -316,7 +316,7 @@ export const initialProducts: Product[] = [
     categoryId: "cat-shringaar",
     categoryName: "Shringaar",
     description:
-      "Complete set of devotional shringar accessories including Kundan Haar, matching Bajuband (armlets), Payal (anklets), Kamarbandh, and Tilak Bindi in an auspicious velvet storage tray.",
+      "Complete set of devotional shringar sacred ornaments including Kundan Haar, matching Bajuband (armlets), Payal (anklets), Kamarbandh, and Tilak Bindi in an auspicious velvet storage tray.",
     material: "Gold Plated Brass & Kundan",
     featured: true,
     isActive: true,

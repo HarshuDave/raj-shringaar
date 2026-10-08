@@ -33,7 +33,7 @@ export default function TermsPage() {
             </h2>
             <p>
               Raj Shringaar is an exclusive devotional platform dedicated to Laddu Gopal / Bal Gopal
-              shringar, poshak, mukut, and accessories. By visiting or placing an order on this website,
+              shringaar, poshak, mukut, mala, and devotional items. By visiting or placing an order on this website,
               you agree to these terms and our devotional policies.
             </p>
           </div>

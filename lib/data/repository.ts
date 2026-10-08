@@ -40,6 +40,10 @@ export const SLUG_ALIASES: Record<string, string> = {
   "shringaar-set": "sampoorna-shringaar-deluxe-set",
 };
 
+export const CATEGORY_SLUG_ALIASES: Record<string, string> = {
+  shringar: "shringaar",
+};
+
 type StoreData = {
   categories: Category[];
   collections: Collection[];
@@ -141,10 +145,13 @@ export async function getAllCategories(): Promise<Category[]> {
 }
 
 export async function getCategoryBySlug(slug: string): Promise<Category | null> {
+  const normalizedSlug = slug.toLowerCase().trim();
+  const canonicalSlug = CATEGORY_SLUG_ALIASES[normalizedSlug] || normalizedSlug;
+
   if (hasDb) {
     try {
       const cat = await withTimeout(
-        prisma.category.findUnique({ where: { slug } }),
+        prisma.category.findUnique({ where: { slug: canonicalSlug } }),
         3000
       );
       if (cat) return cat;
@@ -153,7 +160,7 @@ export async function getCategoryBySlug(slug: string): Promise<Category | null> 
     }
   }
   const store = ensureStoreFile();
-  return store.categories.find((c) => c.slug === slug) || null;
+  return store.categories.find((c) => c.slug === canonicalSlug) || null;
 }
 
 export async function getCategoryById(id: string): Promise<Category | null> {
@@ -436,7 +443,8 @@ export type ProductFilterOptions = {
 export async function getProducts(options: ProductFilterOptions = {}): Promise<Product[]> {
   if (hasDb) {
     try {
-      const catSlug = options.category?.toLowerCase().trim();
+      const rawCatSlug = options.category?.toLowerCase().trim();
+      const catSlug = rawCatSlug ? (CATEGORY_SLUG_ALIASES[rawCatSlug] || rawCatSlug) : undefined;
       const colSlug = options.collection?.toLowerCase().trim();
 
       const dbProducts = await withTimeout(
@@ -536,10 +544,14 @@ export async function getProducts(options: ProductFilterOptions = {}): Promise<P
   let list = store.products.filter((p) => p.isActive);
 
   if (options.category) {
+    const rawCat = options.category.toLowerCase().trim();
+    const resolvedCat = CATEGORY_SLUG_ALIASES[rawCat] || rawCat;
     list = list.filter(
       (p) =>
-        p.categoryName.toLowerCase() === options.category?.toLowerCase() ||
-        p.categoryId.toLowerCase().includes(options.category?.toLowerCase() || "")
+        p.categoryName.toLowerCase() === rawCat ||
+        p.categoryName.toLowerCase() === resolvedCat ||
+        p.categoryId.toLowerCase().includes(rawCat) ||
+        p.categoryId.toLowerCase().includes(resolvedCat)
     );
   }
 
