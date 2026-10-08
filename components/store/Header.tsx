@@ -81,11 +81,12 @@ export default function Header() {
 
         {/* Main Navigation */}
         <div className="border-b border-white/10 bg-royal">
-          <div className="mx-auto flex h-[82px] max-w-[1440px] items-center px-5 lg:px-8">
+          <div className="mx-auto flex h-14 sm:h-16 xl:h-[82px] max-w-[1440px] items-center justify-between xl:justify-start px-4 sm:px-5 lg:px-8">
             {/* Logo */}
             <Link
               href="/"
-              className="relative z-30 -mb-8 flex h-[120px] w-[120px] shrink-0 items-center justify-center overflow-visible"
+              className="relative z-30 flex h-10 w-10 sm:h-11 sm:w-11 xl:h-[120px] xl:w-[120px] xl:-mb-8 shrink-0 items-center justify-center overflow-hidden xl:overflow-visible"
+              aria-label="Raj Shringaar Home"
             >
               <Image
                 src="/logo.png"
@@ -93,7 +94,7 @@ export default function Header() {
                 width={120}
                 height={120}
                 priority
-                className="h-[120px] w-[120px] scale-[2.25] object-contain"
+                className="h-10 w-10 sm:h-11 sm:w-11 xl:h-[120px] xl:w-[120px] scale-110 sm:scale-125 xl:scale-[2.25] object-contain"
               />
             </Link>
 
@@ -122,17 +123,19 @@ export default function Header() {
             </nav>
 
             {/* Actions */}
-            <div className="ml-6 flex items-center gap-4 text-white">
+            <div className="flex items-center gap-1 sm:gap-2 text-white xl:ml-6">
               {/* Search */}
               <button
                 type="button"
                 onClick={() => setSearchOpen(!searchOpen)}
                 aria-label="Search"
-                className={`transition-colors ${searchOpen ? "text-gold" : "hover:text-gold"}`}
+                className={`flex h-10 w-10 items-center justify-center transition-colors ${
+                  searchOpen ? "text-gold" : "text-white hover:text-gold"
+                }`}
               >
                 <svg
-                  width="22"
-                  height="22"
+                  width="20"
+                  height="20"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -147,11 +150,11 @@ export default function Header() {
               <Link
                 href="/account"
                 aria-label="Account"
-                className="hidden transition-colors hover:text-gold sm:block"
+                className="hidden xl:flex h-10 w-10 items-center justify-center text-white transition-colors hover:text-gold"
               >
                 <svg
-                  width="22"
-                  height="22"
+                  width="20"
+                  height="20"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -167,11 +170,11 @@ export default function Header() {
                 type="button"
                 onClick={openCart}
                 aria-label="View cart"
-                className="relative transition-colors hover:text-gold"
+                className="relative flex h-10 w-10 items-center justify-center text-white transition-colors hover:text-gold"
               >
                 <svg
-                  width="23"
-                  height="23"
+                  width="21"
+                  height="21"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -181,8 +184,8 @@ export default function Header() {
                   <path d="M9 8a3 3 0 0 1 6 0" />
                 </svg>
 
-                {/* Cart count */}
-                <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-gold px-1 text-[9px] font-bold text-royal">
+                {/* Cart count badge */}
+                <span className="absolute top-1 right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-gold px-1 text-[9px] font-bold text-royal shadow-xs">
                   {totalItems}
                 </span>
               </button>
@@ -193,11 +196,11 @@ export default function Header() {
                 aria-label="Open navigation menu"
                 aria-expanded={menuOpen}
                 onClick={() => setMenuOpen(true)}
-                className="xl:hidden"
+                className="flex h-10 w-10 items-center justify-center text-white transition-colors hover:text-gold xl:hidden"
               >
                 <svg
-                  width="23"
-                  height="23"
+                  width="21"
+                  height="21"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
