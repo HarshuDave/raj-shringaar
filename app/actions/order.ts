@@ -1,7 +1,10 @@
 "use server";
 
-import { createOrder } from "@/lib/data/repository";
+import { cookies, headers } from "next/headers";
+import { createOrder, getOrderById } from "@/lib/data/repository";
 import { OrderItem, ShippingAddress } from "@/lib/types";
+import { generateOrderAccessToken } from "@/lib/auth/order-token";
+import { checkRateLimit, recordFailedAttempt, recordSuccessfulAttempt } from "@/lib/security/rate-limit";
 
 export type PlaceOrderInput = {
   customerName: string;
@@ -89,9 +92,90 @@ export async function placeOrderAction(input: PlaceOrderInput) {
       paymentMethod: "Online (Prepaid)",
     });
 
-    return { success: true, orderId: order.id, orderNumber: order.orderNumber };
+    // Generate cryptographic order access token for the purchaser
+    const accessToken = generateOrderAccessToken(order.id, order.createdAt);
+
+    // Set secure httpOnly cookie so the user has immediate, seamless access to the receipt
+    const cookieStore = await cookies();
+    cookieStore.set(`rs_order_token_${order.id}`, accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 60 * 60 * 24 * 7, // 7 days
+      path: "/",
+      sameSite: "lax",
+    });
+
+    return {
+      success: true,
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      accessToken,
+    };
   } catch (error: any) {
     console.error("Order creation failed:", error);
     return { success: false, error: error.message || "Failed to process order." };
+  }
+}
+
+/**
+ * Server action to verify ownership of an order and unlock the full receipt.
+ * Used when a visitor arrives at /order-confirmation/[orderId] without an existing access token.
+ */
+export async function verifyOrderReceiptAccessAction(orderId: string, phoneInput: string) {
+  try {
+    const headerStore = await headers();
+    const forwarded = headerStore.get("x-forwarded-for");
+    const ip = forwarded ? forwarded.split(",")[0].trim() : headerStore.get("x-real-ip") || "127.0.0.1";
+
+    const rateLimit = checkRateLimit(`receipt_verify_${ip}`, {
+      maxRequests: 5,
+      windowMs: 60000,
+      maxFailedAttempts: 5,
+      lockoutMs: 15 * 60000,
+    });
+
+    if (!rateLimit.allowed) {
+      return {
+        success: false,
+        error: rateLimit.reason || "Too many verification attempts. Please wait.",
+      };
+    }
+
+    const cleanPhone = phoneInput.replace(/\D/g, "");
+    if (cleanPhone.length !== 10) {
+      return { success: false, error: "Please enter a valid 10-digit mobile number." };
+    }
+
+    const order = await getOrderById(orderId);
+    if (!order) {
+      recordFailedAttempt(`receipt_verify_${ip}`);
+      return { success: false, error: "Order not found." };
+    }
+
+    const orderPhone = order.customerPhone.replace(/\D/g, "");
+    if (orderPhone !== cleanPhone) {
+      recordFailedAttempt(`receipt_verify_${ip}`);
+      return {
+        success: false,
+        error: "The mobile number entered does not match this order reference.",
+      };
+    }
+
+    recordSuccessfulAttempt(`receipt_verify_${ip}`);
+
+    // Generate token and set session cookie
+    const accessToken = generateOrderAccessToken(order.id, order.createdAt);
+    const cookieStore = await cookies();
+    cookieStore.set(`rs_order_token_${order.id}`, accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 60 * 60 * 24 * 7,
+      path: "/",
+      sameSite: "lax",
+    });
+
+    return { success: true, accessToken };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Failed to verify receipt access." };
   }
 }

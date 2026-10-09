@@ -130,7 +130,8 @@ export default function CheckoutPage() {
         setErrorMessage(res.error || "Unable to complete order.");
       } else {
         clearCart();
-        router.push(`/order-confirmation/${res.orderId}`);
+        const tokenQuery = res.accessToken ? `?token=${res.accessToken}` : "";
+        router.push(`/order-confirmation/${res.orderId}${tokenQuery}`);
       }
     });
   };

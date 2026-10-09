@@ -957,6 +957,70 @@ export async function getOrderById(id: string): Promise<Order | null> {
   return store.orders.find((o) => o.id === id || o.orderNumber === id) || null;
 }
 
+export async function getOrderByNumberAndPhone(
+  orderNumber: string,
+  phone: string
+): Promise<Order | null> {
+  const cleanPhone = phone.replace(/\D/g, "");
+  const canonicalOrderNumber = orderNumber.trim().toUpperCase();
+
+  if (!canonicalOrderNumber || cleanPhone.length !== 10) {
+    return null;
+  }
+
+  if (hasDb) {
+    try {
+      const o = await withTimeout(
+        prisma.order.findFirst({
+          where: {
+            orderNumber: canonicalOrderNumber,
+            customerPhone: cleanPhone,
+          },
+          include: { items: true },
+        }),
+        3000
+      );
+      if (o) {
+        return {
+          id: o.id,
+          orderNumber: o.orderNumber,
+          customerName: o.customerName,
+          customerEmail: o.customerEmail,
+          customerPhone: o.customerPhone,
+          shippingAddress: o.shippingAddress as any,
+          items: o.items.map((i) => ({
+            id: i.id,
+            productId: i.productId,
+            variantId: i.variantId,
+            productName: i.productName,
+            size: i.size || undefined,
+            colour: i.colour || undefined,
+            price: i.price,
+            quantity: i.quantity,
+            image: i.image || "",
+          })),
+          totalAmount: o.totalAmount,
+          orderStatus: o.orderStatus as OrderStatus,
+          paymentStatus: o.paymentStatus as any,
+          paymentMethod: o.paymentMethod,
+          createdAt: o.createdAt.toISOString(),
+        };
+      }
+    } catch (e) {
+      console.warn("DB getOrderByNumberAndPhone failed or timed out:", e);
+    }
+  }
+
+  const store = ensureStoreFile();
+  return (
+    store.orders.find(
+      (o) =>
+        o.orderNumber.toUpperCase() === canonicalOrderNumber &&
+        o.customerPhone.replace(/\D/g, "") === cleanPhone
+    ) || null
+  );
+}
+
 export async function createOrder(
   orderData: Omit<Order, "id" | "orderNumber" | "createdAt">
 ): Promise<Order> {

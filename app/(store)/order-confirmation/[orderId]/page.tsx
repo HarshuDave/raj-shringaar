@@ -1,10 +1,14 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
+import { cookies } from "next/headers";
 import { getOrderById } from "@/lib/data/repository";
+import { verifyOrderAccessToken } from "@/lib/auth/order-token";
+import OrderReceiptVerificationGate from "@/components/store/OrderReceiptVerificationGate";
 
 interface PageProps {
   params: Promise<{ orderId: string }>;
+  searchParams: Promise<{ token?: string }>;
 }
 
 export const metadata = {
@@ -12,12 +16,36 @@ export const metadata = {
   description: "Your devotional order has been confirmed with divine elegance.",
 };
 
-export default async function OrderConfirmationPage({ params }: PageProps) {
+export default async function OrderConfirmationPage({ params, searchParams }: PageProps) {
   const { orderId } = await params;
+  const { token } = await searchParams;
   const order = await getOrderById(orderId);
 
   if (!order) {
     notFound();
+  }
+
+  // Verify access authorization via cryptographic token or session cookie
+  const cookieStore = await cookies();
+  const cookieToken = cookieStore.get(`rs_order_token_${order.id}`)?.value;
+  const candidateToken = token || cookieToken;
+
+  const isAuthorized = verifyOrderAccessToken(order.id, order.createdAt, candidateToken);
+
+  // If unauthorized, render verification gate to protect customer PII
+  if (!isAuthorized) {
+    return (
+      <div className="bg-ivory py-16 px-4 sm:px-6 lg:px-12">
+        <div className="mx-auto max-w-[800px]">
+          <OrderReceiptVerificationGate
+            orderId={order.id}
+            orderNumber={order.orderNumber}
+            orderStatus={order.orderStatus}
+            orderDate={new Date(order.createdAt).toLocaleDateString("en-IN")}
+          />
+        </div>
+      </div>
+    );
   }
 
   return (
