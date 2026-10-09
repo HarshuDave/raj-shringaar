@@ -1036,7 +1036,6 @@ export async function createOrder(
   }
 
   const orderId = `ord_${Date.now()}`;
-  const orderNumber = generateOrderReference();
 
   // Execute inside an ACID transaction to guarantee stock deduction, verified prices, and order creation occur atomically
   return await prisma.$transaction(async (tx) => {
@@ -1101,7 +1100,20 @@ export async function createOrder(
     const verifiedShippingFee = calculateShippingFee(verifiedSubtotal);
     const verifiedTotalAmount = verifiedSubtotal + verifiedShippingFee;
 
-    // 3. Insert confirmed Order into PostgreSQL
+    // 3. Generate collision-resistant order reference (retries up to 3 times if collision detected)
+    let orderNumber = generateOrderReference();
+    let collisionRetries = 0;
+    while (collisionRetries < 3) {
+      const existing = await tx.order.findUnique({
+        where: { orderNumber },
+        select: { id: true },
+      });
+      if (!existing) break;
+      orderNumber = generateOrderReference();
+      collisionRetries++;
+    }
+
+    // 4. Insert confirmed Order into PostgreSQL
     const dbOrder = await tx.order.create({
       data: {
         id: orderId,

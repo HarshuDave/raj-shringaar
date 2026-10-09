@@ -40,6 +40,8 @@ export function resetRedisClientForTesting() {
   memoryStore.clear();
 }
 
+let hasLoggedMissingCredentialsWarning = false;
+
 function getRedisClient(): Redis | null {
   if (customRedisClient !== null) {
     return customRedisClient;
@@ -49,6 +51,19 @@ function getRedisClient(): Redis | null {
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
 
   if (!url || !token) {
+    const isProduction =
+      process.env.NODE_ENV === "production" ||
+      process.env.VERCEL === "1" ||
+      process.env.VERCEL === "true" ||
+      process.env.VERCEL_ENV === "production" ||
+      process.env.VERCEL_ENV === "preview";
+
+    if (isProduction && !hasLoggedMissingCredentialsWarning) {
+      hasLoggedMissingCredentialsWarning = true;
+      console.warn(
+        "[SECURITY CONFIGURATION WARNING] Upstash Redis rate limiting credentials (UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN) are missing. Operating with local emergency in-memory rate limiting."
+      );
+    }
     return null;
   }
 
@@ -180,7 +195,7 @@ export async function checkRateLimit(
     const ttl = Number(results[1]);
 
     const windowSec = Math.ceil(windowMs / 1000);
-    if (ttl < 0) {
+    if (count === 1 || ttl < 0) {
       await redis.expire(reqKey, windowSec);
     }
 
@@ -197,8 +212,12 @@ export async function checkRateLimit(
     return { allowed: true, source: "distributed_redis" };
   } catch (err) {
     console.error("[RateLimiter] Distributed Redis check failed, falling back to emergency local rate limiter:", err);
-    // FAIL SAFE: Never allow an unrestricted endpoint. Evaluate against local emergency memory limiter.
-    return checkRateLimitMemory(identifier, options);
+    // Bounded fail-safe: Never leave endpoint unrestricted, enforce bounded local rate limiting
+    const boundedMaxRequests = Math.max(3, Math.min(options.maxRequests || 5, 5));
+    return checkRateLimitMemory(identifier, {
+      ...options,
+      maxRequests: boundedMaxRequests,
+    });
   }
 }
 
@@ -242,7 +261,7 @@ export async function recordFailedAttempt(
     const failedCount = Number(results[0]);
     const ttl = Number(results[1]);
 
-    if (ttl < 0) {
+    if (failedCount === 1 || ttl < 0) {
       await redis.expire(failedKey, lockoutSec);
     }
 
