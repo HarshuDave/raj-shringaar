@@ -81,11 +81,11 @@ export default function Header() {
 
         {/* Main Navigation */}
         <div className="border-b border-white/10 bg-royal">
-          <div className="mx-auto flex h-14 sm:h-16 xl:h-[82px] max-w-[1440px] items-center justify-between xl:justify-start px-4 sm:px-5 lg:px-8">
+          <div className="mx-auto flex h-[72px] sm:h-[76px] xl:h-[82px] max-w-[1440px] items-center justify-between xl:justify-start px-4 sm:px-5 lg:px-8">
             {/* Logo */}
             <Link
               href="/"
-              className="relative z-30 flex h-10 w-10 sm:h-11 sm:w-11 xl:h-[120px] xl:w-[120px] xl:-mb-8 shrink-0 items-center justify-center overflow-hidden xl:overflow-visible"
+              className="relative z-30 flex h-16 w-16 sm:h-[68px] sm:w-[68px] xl:h-[120px] xl:w-[120px] xl:-mb-8 shrink-0 items-center justify-center overflow-hidden xl:overflow-visible"
               aria-label="Raj Shringaar Home"
             >
               <Image
@@ -94,7 +94,7 @@ export default function Header() {
                 width={120}
                 height={120}
                 priority
-                className="h-10 w-10 sm:h-11 sm:w-11 xl:h-[120px] xl:w-[120px] scale-110 sm:scale-125 xl:scale-[2.25] object-contain"
+                className="h-16 w-16 sm:h-[68px] sm:w-[68px] xl:h-[120px] xl:w-[120px] scale-[2.35] xl:scale-[2.25] object-contain"
               />
             </Link>
 
