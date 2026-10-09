@@ -16,24 +16,24 @@ function getClientIp(req: NextRequest): string {
 }
 
 async function handleLookup(orderNumberRaw?: string | null, phoneRaw?: string | null, ip: string = "127.0.0.1") {
-  // 1. Rate Limiting Check
-  const rateLimit = checkRateLimit(ip, {
+  // 1. Rate Limiting Check (IP-level)
+  const ipRateLimit = checkRateLimit(`lookup_ip_${ip}`, {
     maxRequests: 10,
     windowMs: 60000,
     maxFailedAttempts: 5,
     lockoutMs: 15 * 60000,
   });
 
-  if (!rateLimit.allowed) {
+  if (!ipRateLimit.allowed) {
     return NextResponse.json(
       {
         success: false,
-        error: rateLimit.reason || "Too many requests. Please try again later.",
+        error: ipRateLimit.reason || "Too many requests. Please try again later.",
       },
       {
         status: 429,
         headers: {
-          "Retry-After": String(rateLimit.retryAfterSeconds || 60),
+          "Retry-After": String(ipRateLimit.retryAfterSeconds || 60),
         },
       }
     );
@@ -74,11 +74,35 @@ async function handleLookup(orderNumberRaw?: string | null, phoneRaw?: string | 
     );
   }
 
-  // 3. Exact Database Lookup
+  // 3. Rate Limiting Check (Phone-level)
+  const phoneRateLimit = checkRateLimit(`lookup_phone_${phone}`, {
+    maxRequests: 5,
+    windowMs: 60000,
+    maxFailedAttempts: 5,
+    lockoutMs: 15 * 60000,
+  });
+
+  if (!phoneRateLimit.allowed) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: phoneRateLimit.reason || "Too many lookup attempts for this phone number. Please try again later.",
+      },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(phoneRateLimit.retryAfterSeconds || 60),
+        },
+      }
+    );
+  }
+
+  // 4. Exact Database Lookup
   const order = await getOrderByNumberAndPhone(orderNumber, phone);
 
   if (!order) {
-    recordFailedAttempt(ip, { maxFailedAttempts: 5, lockoutMs: 15 * 60000 });
+    recordFailedAttempt(`lookup_ip_${ip}`, { maxFailedAttempts: 5, lockoutMs: 15 * 60000 });
+    recordFailedAttempt(`lookup_phone_${phone}`, { maxFailedAttempts: 5, lockoutMs: 15 * 60000 });
     return NextResponse.json(
       {
         success: false,
@@ -88,11 +112,12 @@ async function handleLookup(orderNumberRaw?: string | null, phoneRaw?: string | 
     );
   }
 
-  // 4. Successful Verification
-  recordSuccessfulAttempt(ip);
+  // 5. Successful Verification
+  recordSuccessfulAttempt(`lookup_ip_${ip}`);
+  recordSuccessfulAttempt(`lookup_phone_${phone}`);
 
   // Generate cryptographically signed token for receipt access
-  const accessToken = generateOrderAccessToken(order.id, order.createdAt);
+  const accessToken = generateOrderAccessToken(order.id);
 
   // Return strictly sanitized public status response (no full address, no email, no raw phone, no DB IDs)
   return NextResponse.json({

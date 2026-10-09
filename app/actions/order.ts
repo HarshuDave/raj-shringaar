@@ -93,7 +93,7 @@ export async function placeOrderAction(input: PlaceOrderInput) {
     });
 
     // Generate cryptographic order access token for the purchaser
-    const accessToken = generateOrderAccessToken(order.id, order.createdAt);
+    const accessToken = generateOrderAccessToken(order.id);
 
     // Set secure httpOnly cookie so the user has immediate, seamless access to the receipt
     const cookieStore = await cookies();
@@ -120,6 +120,8 @@ export async function placeOrderAction(input: PlaceOrderInput) {
 /**
  * Server action to verify ownership of an order and unlock the full receipt.
  * Used when a visitor arrives at /order-confirmation/[orderId] without an existing access token.
+ * 
+ * Security: Returns identical error message on missing order or mismatching phone to prevent enumeration.
  */
 export async function verifyOrderReceiptAccessAction(orderId: string, phoneInput: string) {
   try {
@@ -127,44 +129,58 @@ export async function verifyOrderReceiptAccessAction(orderId: string, phoneInput
     const forwarded = headerStore.get("x-forwarded-for");
     const ip = forwarded ? forwarded.split(",")[0].trim() : headerStore.get("x-real-ip") || "127.0.0.1";
 
-    const rateLimit = checkRateLimit(`receipt_verify_${ip}`, {
+    const cleanPhone = phoneInput.replace(/\D/g, "");
+    if (cleanPhone.length !== 10) {
+      return { success: false, error: "Please enter a valid 10-digit mobile number." };
+    }
+
+    // Dual-key rate limit check: both IP and phone identifier
+    const ipRateLimit = checkRateLimit(`receipt_verify_ip_${ip}`, {
       maxRequests: 5,
       windowMs: 60000,
       maxFailedAttempts: 5,
       lockoutMs: 15 * 60000,
     });
 
-    if (!rateLimit.allowed) {
+    if (!ipRateLimit.allowed) {
       return {
         success: false,
-        error: rateLimit.reason || "Too many verification attempts. Please wait.",
+        error: ipRateLimit.reason || "Too many verification attempts. Please wait.",
       };
     }
 
-    const cleanPhone = phoneInput.replace(/\D/g, "");
-    if (cleanPhone.length !== 10) {
-      return { success: false, error: "Please enter a valid 10-digit mobile number." };
+    const phoneRateLimit = checkRateLimit(`receipt_verify_phone_${cleanPhone}`, {
+      maxRequests: 5,
+      windowMs: 60000,
+      maxFailedAttempts: 5,
+      lockoutMs: 15 * 60000,
+    });
+
+    if (!phoneRateLimit.allowed) {
+      return {
+        success: false,
+        error: phoneRateLimit.reason || "Too many verification attempts for this number. Please wait.",
+      };
     }
 
     const order = await getOrderById(orderId);
-    if (!order) {
-      recordFailedAttempt(`receipt_verify_${ip}`);
-      return { success: false, error: "Order not found." };
-    }
+    const orderPhone = order ? order.customerPhone.replace(/\D/g, "") : null;
 
-    const orderPhone = order.customerPhone.replace(/\D/g, "");
-    if (orderPhone !== cleanPhone) {
-      recordFailedAttempt(`receipt_verify_${ip}`);
+    // Uniform verification failure: does not reveal whether the order ID exists
+    if (!order || orderPhone !== cleanPhone) {
+      recordFailedAttempt(`receipt_verify_ip_${ip}`);
+      recordFailedAttempt(`receipt_verify_phone_${cleanPhone}`);
       return {
         success: false,
-        error: "The mobile number entered does not match this order reference.",
+        error: "Unable to verify order details. Please verify your order reference and mobile number.",
       };
     }
 
-    recordSuccessfulAttempt(`receipt_verify_${ip}`);
+    recordSuccessfulAttempt(`receipt_verify_ip_${ip}`);
+    recordSuccessfulAttempt(`receipt_verify_phone_${cleanPhone}`);
 
     // Generate token and set session cookie
-    const accessToken = generateOrderAccessToken(order.id, order.createdAt);
+    const accessToken = generateOrderAccessToken(order.id);
     const cookieStore = await cookies();
     cookieStore.set(`rs_order_token_${order.id}`, accessToken, {
       httpOnly: true,

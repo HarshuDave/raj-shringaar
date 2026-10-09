@@ -30,7 +30,7 @@ export default async function OrderConfirmationPage({ params, searchParams }: Pa
   const cookieToken = cookieStore.get(`rs_order_token_${order.id}`)?.value;
   const candidateToken = token || cookieToken;
 
-  const isAuthorized = verifyOrderAccessToken(order.id, order.createdAt, candidateToken);
+  const isAuthorized = verifyOrderAccessToken(order.id, candidateToken);
 
   // If unauthorized, render verification gate to protect customer PII
   if (!isAuthorized) {
