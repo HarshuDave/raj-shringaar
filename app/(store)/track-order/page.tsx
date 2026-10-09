@@ -42,7 +42,7 @@ export default function TrackOrderPage() {
     const cleanPhone = phone.replace(/\D/g, "");
 
     if (!cleanOrderNumber) {
-      setError("Please enter your Order Reference Number (e.g. RS-123456).");
+      setError("Please enter your Order Reference Number (e.g. RS-285789 or RS-8K3P9M2X).");
       return;
     }
 
@@ -92,7 +92,7 @@ export default function TrackOrderPage() {
             Track Your Devotional Order
           </h1>
           <p className="text-xs sm:text-sm text-royal/70 mt-1">
-            To protect your privacy, enter both your 6-digit Order Reference Number and registered 10-digit mobile number.
+            To protect your privacy, enter both your Order Reference Number and registered 10-digit mobile number.
           </p>
         </div>
 
@@ -109,7 +109,7 @@ export default function TrackOrderPage() {
                   required
                   value={orderNumber}
                   onChange={(e) => setOrderNumber(e.target.value)}
-                  placeholder="e.g. RS-123456"
+                  placeholder="e.g. RS-285789 or RS-8K3P9M2X"
                   className="w-full h-12 px-4 border border-gold/30 text-xs bg-ivory text-royal placeholder:text-royal/40 outline-none focus:border-gold uppercase"
                 />
               </div>

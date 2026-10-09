@@ -6,6 +6,7 @@ import {
   recordFailedAttempt,
   recordSuccessfulAttempt,
 } from "@/lib/security/rate-limit";
+import { isValidOrderReference } from "@/lib/security/order-reference";
 
 function getClientIp(req: NextRequest): string {
   const forwarded = req.headers.get("x-forwarded-for");
@@ -17,7 +18,7 @@ function getClientIp(req: NextRequest): string {
 
 async function handleLookup(orderNumberRaw?: string | null, phoneRaw?: string | null, ip: string = "127.0.0.1") {
   // 1. Rate Limiting Check (IP-level)
-  const ipRateLimit = checkRateLimit(`lookup_ip_${ip}`, {
+  const ipRateLimit = await checkRateLimit(`lookup_ip_${ip}`, {
     maxRequests: 10,
     windowMs: 60000,
     maxFailedAttempts: 5,
@@ -53,12 +54,11 @@ async function handleLookup(orderNumberRaw?: string | null, phoneRaw?: string | 
     );
   }
 
-  const orderNumberRegex = /^RS-\d{6}$/;
-  if (!orderNumberRegex.test(orderNumber)) {
+  if (!isValidOrderReference(orderNumber)) {
     return NextResponse.json(
       {
         success: false,
-        error: "Invalid Order Reference format. It must follow the RS-XXXXXX format (e.g. RS-123456).",
+        error: "Invalid Order Reference format. It must follow the RS-XXXXXX (legacy) or RS-XXXXXXXX format.",
       },
       { status: 400 }
     );
@@ -75,7 +75,7 @@ async function handleLookup(orderNumberRaw?: string | null, phoneRaw?: string | 
   }
 
   // 3. Rate Limiting Check (Phone-level)
-  const phoneRateLimit = checkRateLimit(`lookup_phone_${phone}`, {
+  const phoneRateLimit = await checkRateLimit(`lookup_phone_${phone}`, {
     maxRequests: 5,
     windowMs: 60000,
     maxFailedAttempts: 5,
@@ -101,8 +101,8 @@ async function handleLookup(orderNumberRaw?: string | null, phoneRaw?: string | 
   const order = await getOrderByNumberAndPhone(orderNumber, phone);
 
   if (!order) {
-    recordFailedAttempt(`lookup_ip_${ip}`, { maxFailedAttempts: 5, lockoutMs: 15 * 60000 });
-    recordFailedAttempt(`lookup_phone_${phone}`, { maxFailedAttempts: 5, lockoutMs: 15 * 60000 });
+    await recordFailedAttempt(`lookup_ip_${ip}`, { maxFailedAttempts: 5, lockoutMs: 15 * 60000 });
+    await recordFailedAttempt(`lookup_phone_${phone}`, { maxFailedAttempts: 5, lockoutMs: 15 * 60000 });
     return NextResponse.json(
       {
         success: false,
@@ -113,14 +113,14 @@ async function handleLookup(orderNumberRaw?: string | null, phoneRaw?: string | 
   }
 
   // 5. Successful Verification
-  recordSuccessfulAttempt(`lookup_ip_${ip}`);
-  recordSuccessfulAttempt(`lookup_phone_${phone}`);
+  await recordSuccessfulAttempt(`lookup_ip_${ip}`);
+  await recordSuccessfulAttempt(`lookup_phone_${phone}`);
 
   // Generate cryptographically signed token for receipt access
   const accessToken = generateOrderAccessToken(order.id);
 
   // Return strictly sanitized public status response (no full address, no email, no raw phone, no DB IDs)
-  return NextResponse.json({
+  const res = NextResponse.json({
     success: true,
     tracking: {
       orderNumber: order.orderNumber,
@@ -143,6 +143,17 @@ async function handleLookup(orderNumberRaw?: string | null, phoneRaw?: string | 
     orderId: order.id,
     accessToken,
   });
+
+  // Set secure HttpOnly cookie so customer can seamlessly open and refresh the receipt
+  res.cookies.set(`rs_order_token_${order.id}`, accessToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 60 * 60 * 24 * 7,
+    path: "/",
+    sameSite: "lax",
+  });
+
+  return res;
 }
 
 export async function GET(req: NextRequest) {

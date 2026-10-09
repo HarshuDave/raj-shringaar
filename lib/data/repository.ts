@@ -15,6 +15,7 @@ import {
 } from "./catalog";
 import { prisma } from "@/lib/prisma";
 import { calculateShippingFee } from "@/lib/config/shipping";
+import { generateOrderReference } from "@/lib/security/order-reference";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const STORE_FILE = path.join(DATA_DIR, "store.json");
@@ -1035,7 +1036,7 @@ export async function createOrder(
   }
 
   const orderId = `ord_${Date.now()}`;
-  const orderNumber = `RS-${Math.floor(100000 + Math.random() * 900000)}`;
+  const orderNumber = generateOrderReference();
 
   // Execute inside an ACID transaction to guarantee stock deduction, verified prices, and order creation occur atomically
   return await prisma.$transaction(async (tx) => {

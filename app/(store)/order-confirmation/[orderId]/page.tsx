@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { getOrderById } from "@/lib/data/repository";
 import { verifyOrderAccessToken } from "@/lib/auth/order-token";
 import OrderReceiptVerificationGate from "@/components/store/OrderReceiptVerificationGate";
+import OrderReceiptUrlScrubber from "@/components/store/OrderReceiptUrlScrubber";
 
 interface PageProps {
   params: Promise<{ orderId: string }>;
@@ -50,6 +51,7 @@ export default async function OrderConfirmationPage({ params, searchParams }: Pa
 
   return (
     <div className="bg-ivory py-16 px-4 sm:px-6 lg:px-12">
+      <OrderReceiptUrlScrubber />
       <div className="mx-auto max-w-[800px]">
         {/* Success Card */}
         <div className="bg-white border border-gold/30 p-8 sm:p-12 shadow-sm text-center">

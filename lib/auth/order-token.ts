@@ -9,20 +9,33 @@ export function getOrderTokenSecret(): string {
   const isProduction =
     process.env.NODE_ENV === "production" ||
     process.env.VERCEL === "1" ||
-    process.env.VERCEL === "true";
+    process.env.VERCEL === "true" ||
+    process.env.VERCEL_ENV === "production" ||
+    process.env.VERCEL_ENV === "preview";
 
   if (isProduction) {
     if (!secret || secret.trim().length === 0) {
       throw new Error(
-        "CRITICAL SECURITY CONFIGURATION ERROR: ORDER_TOKEN_SECRET is required in production. Refusing to operate with fallback secrets."
+        "CRITICAL SECURITY CONFIGURATION ERROR: ORDER_TOKEN_SECRET is required in production and preview environments. Refusing to operate with fallback secrets."
       );
     }
-    if (secret.length < 32) {
+    if (secret.trim().length < 32) {
       throw new Error(
-        "CRITICAL SECURITY CONFIGURATION ERROR: ORDER_TOKEN_SECRET must be at least 32 characters in production."
+        "CRITICAL SECURITY CONFIGURATION ERROR: ORDER_TOKEN_SECRET must be at least 32 non-whitespace characters in production."
       );
     }
-    return secret;
+
+    const FORBIDDEN_SECRETS = [
+      "raj-shringaar-dev-only-secret-do-not-use-in-production-min32chars!",
+      "replace-with-a-secure-random-at-least-32-character-secret",
+    ];
+    if (FORBIDDEN_SECRETS.includes(secret.trim())) {
+      throw new Error(
+        "CRITICAL SECURITY CONFIGURATION ERROR: ORDER_TOKEN_SECRET cannot be a default template or placeholder secret in production."
+      );
+    }
+
+    return secret.trim();
   }
 
   // Non-production fallback (development and local test suite only)

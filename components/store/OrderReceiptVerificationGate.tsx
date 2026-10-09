@@ -66,20 +66,25 @@ export default function OrderReceiptVerificationGate({
       </p>
 
       {/* Basic Sanitized Summary */}
-      <div className="bg-cream/60 border border-gold/20 p-4 text-xs text-left space-y-2">
-        <div className="flex justify-between">
-          <span className="text-royal/60">Order Reference:</span>
-          <span className="font-bold text-royal">{orderNumber}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-royal/60">Order Date:</span>
-          <span className="font-bold text-royal">{orderDate}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-royal/60">Status:</span>
-          <span className="font-bold text-royal uppercase">{orderStatus}</span>
-        </div>
-      </div>
+      {(() => {
+        const maskedOrderNumber = orderNumber.length > 5 ? `${orderNumber.slice(0, 3)}••••${orderNumber.slice(-2)}` : orderNumber;
+        return (
+          <div className="bg-cream/60 border border-gold/20 p-4 text-xs text-left space-y-2">
+            <div className="flex justify-between">
+              <span className="text-royal/60">Order Reference:</span>
+              <span className="font-bold text-royal">{maskedOrderNumber}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-royal/60">Order Date:</span>
+              <span className="font-bold text-royal">{orderDate}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-royal/60">Status:</span>
+              <span className="font-bold text-royal uppercase">{orderStatus}</span>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Verification Form */}
       <form onSubmit={handleVerify} className="space-y-4 pt-2">

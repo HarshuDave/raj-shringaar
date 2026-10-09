@@ -135,7 +135,7 @@ export async function verifyOrderReceiptAccessAction(orderId: string, phoneInput
     }
 
     // Dual-key rate limit check: both IP and phone identifier
-    const ipRateLimit = checkRateLimit(`receipt_verify_ip_${ip}`, {
+    const ipRateLimit = await checkRateLimit(`receipt_verify_ip_${ip}`, {
       maxRequests: 5,
       windowMs: 60000,
       maxFailedAttempts: 5,
@@ -149,7 +149,7 @@ export async function verifyOrderReceiptAccessAction(orderId: string, phoneInput
       };
     }
 
-    const phoneRateLimit = checkRateLimit(`receipt_verify_phone_${cleanPhone}`, {
+    const phoneRateLimit = await checkRateLimit(`receipt_verify_phone_${cleanPhone}`, {
       maxRequests: 5,
       windowMs: 60000,
       maxFailedAttempts: 5,
@@ -168,16 +168,16 @@ export async function verifyOrderReceiptAccessAction(orderId: string, phoneInput
 
     // Uniform verification failure: does not reveal whether the order ID exists
     if (!order || orderPhone !== cleanPhone) {
-      recordFailedAttempt(`receipt_verify_ip_${ip}`);
-      recordFailedAttempt(`receipt_verify_phone_${cleanPhone}`);
+      await recordFailedAttempt(`receipt_verify_ip_${ip}`);
+      await recordFailedAttempt(`receipt_verify_phone_${cleanPhone}`);
       return {
         success: false,
         error: "Unable to verify order details. Please verify your order reference and mobile number.",
       };
     }
 
-    recordSuccessfulAttempt(`receipt_verify_ip_${ip}`);
-    recordSuccessfulAttempt(`receipt_verify_phone_${cleanPhone}`);
+    await recordSuccessfulAttempt(`receipt_verify_ip_${ip}`);
+    await recordSuccessfulAttempt(`receipt_verify_phone_${cleanPhone}`);
 
     // Generate token and set session cookie
     const accessToken = generateOrderAccessToken(order.id);
