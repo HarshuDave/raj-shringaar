@@ -4,6 +4,8 @@ import { cookies, headers } from "next/headers";
 import { createOrder, getOrderById } from "@/lib/data/repository";
 import { OrderItem, ShippingAddress } from "@/lib/types";
 import { generateOrderAccessToken } from "@/lib/auth/order-token";
+import { getAuthenticatedCustomer } from "@/lib/auth/customer-session";
+import { normalizeIndianPhone } from "@/lib/security/phone";
 import { checkRateLimit, recordFailedAttempt, recordSuccessfulAttempt } from "@/lib/security/rate-limit";
 
 export type PlaceOrderInput = {
@@ -32,7 +34,9 @@ export async function placeOrderAction(input: PlaceOrderInput) {
       return { success: false, error: "Please provide a valid email address." };
     }
 
-    const cleanPhone = input.customerPhone?.replace(/\D/g, "");
+    const normalizedPhone = normalizeIndianPhone(input.customerPhone || "");
+    const rawDigits = input.customerPhone?.replace(/\D/g, "") || "";
+    const cleanPhone = normalizedPhone || (rawDigits.length === 10 ? rawDigits : "");
     if (!cleanPhone || cleanPhone.length !== 10) {
       return { success: false, error: "Please provide a valid 10-digit mobile number." };
     }
@@ -69,8 +73,26 @@ export async function placeOrderAction(input: PlaceOrderInput) {
       }
     }
 
+    // Optional customer session check: guest checkout remains completely open without login,
+    // while an authenticated customer placing an order with their verified phone has it linked automatically.
+    let linkedCustomerId: string | null = null;
+    try {
+      const authenticatedCustomer = await getAuthenticatedCustomer();
+      if (
+        authenticatedCustomer &&
+        authenticatedCustomer.phoneVerified &&
+        authenticatedCustomer.verifiedPhone === cleanPhone
+      ) {
+        linkedCustomerId = authenticatedCustomer.id;
+      }
+    } catch {
+      // Never block guest checkout if session lookup fails
+      linkedCustomerId = null;
+    }
+
     // Create order with server-side inventory deduction
     const order = await createOrder({
+      customerId: linkedCustomerId,
       customerName: trimmedName,
       customerEmail: trimmedEmail,
       customerPhone: cleanPhone,

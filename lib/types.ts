@@ -102,6 +102,7 @@ export type ShippingAddress = {
 export type Order = {
   id: string;
   orderNumber: string;
+  customerId?: string | null;
   customerName: string;
   customerEmail: string;
   customerPhone: string;

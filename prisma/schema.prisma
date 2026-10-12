@@ -86,13 +86,50 @@ model ProductCollection {
 }
 
 model Customer {
-  id        String   @id @default(cuid())
-  name      String
-  email     String   @unique
-  phone     String?
-  orders    Order[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              String            @id @default(cuid())
+  name            String            @default("")
+  email           String?           @unique
+  phone           String?
+  verifiedPhone   String?           @unique
+  phoneVerified   Boolean           @default(false)
+  phoneVerifiedAt DateTime?
+  orders          Order[]
+  sessions        CustomerSession[]
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([phone])
+}
+
+model CustomerSession {
+  id           String    @id @default(cuid())
+  customerId   String
+  customer     Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  tokenHash    String    @unique
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime  @default(now())
+  lastActiveAt DateTime  @default(now())
+
+  @@index([customerId])
+  @@index([expiresAt])
+}
+
+model OtpChallenge {
+  id            String    @id @default(cuid())
+  phone         String
+  otpHash       String
+  expiresAt     DateTime
+  attempts      Int       @default(0)
+  maxAttempts   Int       @default(5)
+  consumedAt    DateTime?
+  invalidatedAt DateTime?
+  ipAddress     String?
+  createdAt     DateTime  @default(now())
+
+  @@index([phone, createdAt])
 }
 
 enum OrderStatus {
@@ -129,6 +166,9 @@ model Order {
   items             OrderItem[]
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
+
+  @@index([customerId])
+  @@index([customerPhone])
 }
 
 model OrderItem {

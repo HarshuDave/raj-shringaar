@@ -928,6 +928,7 @@ export async function getOrderById(id: string): Promise<Order | null> {
         return {
           id: o.id,
           orderNumber: o.orderNumber,
+          customerId: o.customerId || null,
           customerName: o.customerName,
           customerEmail: o.customerEmail,
           customerPhone: o.customerPhone,
@@ -958,6 +959,52 @@ export async function getOrderById(id: string): Promise<Order | null> {
   return store.orders.find((o) => o.id === id || o.orderNumber === id) || null;
 }
 
+export async function getOrdersByCustomerId(customerId: string): Promise<Order[]> {
+  if (!customerId || !customerId.trim() || !hasDb) {
+    return [];
+  }
+
+  try {
+    const orders = await withTimeout(
+      prisma.order.findMany({
+        where: { customerId: customerId.trim() },
+        include: { items: true },
+        orderBy: { createdAt: "desc" },
+      }),
+      4000
+    );
+
+    return orders.map((o) => ({
+      id: o.id,
+      orderNumber: o.orderNumber,
+      customerId: o.customerId || null,
+      customerName: o.customerName,
+      customerEmail: o.customerEmail,
+      customerPhone: o.customerPhone,
+      shippingAddress: o.shippingAddress as any,
+      items: o.items.map((i) => ({
+        id: i.id,
+        productId: i.productId,
+        variantId: i.variantId,
+        productName: i.productName,
+        size: i.size || undefined,
+        colour: i.colour || undefined,
+        price: i.price,
+        quantity: i.quantity,
+        image: i.image || "",
+      })),
+      totalAmount: o.totalAmount,
+      orderStatus: o.orderStatus as OrderStatus,
+      paymentStatus: o.paymentStatus as any,
+      paymentMethod: o.paymentMethod,
+      createdAt: o.createdAt.toISOString(),
+    }));
+  } catch (e) {
+    console.warn("DB getOrdersByCustomerId failed:", e);
+    return [];
+  }
+}
+
 export async function getOrderByNumberAndPhone(
   orderNumber: string,
   phone: string
@@ -985,6 +1032,7 @@ export async function getOrderByNumberAndPhone(
         return {
           id: o.id,
           orderNumber: o.orderNumber,
+          customerId: o.customerId || null,
           customerName: o.customerName,
           customerEmail: o.customerEmail,
           customerPhone: o.customerPhone,
@@ -1118,6 +1166,7 @@ export async function createOrder(
       data: {
         id: orderId,
         orderNumber,
+        customerId: orderData.customerId || null,
         customerName: orderData.customerName,
         customerEmail: orderData.customerEmail,
         customerPhone: orderData.customerPhone,
@@ -1145,6 +1194,7 @@ export async function createOrder(
     return {
       id: dbOrder.id,
       orderNumber: dbOrder.orderNumber,
+      customerId: dbOrder.customerId || null,
       customerName: dbOrder.customerName,
       customerEmail: dbOrder.customerEmail,
       customerPhone: dbOrder.customerPhone,
@@ -1186,6 +1236,7 @@ export async function updateOrderStatus(
   return {
     id: updated.id,
     orderNumber: updated.orderNumber,
+    customerId: updated.customerId || null,
     customerName: updated.customerName,
     customerEmail: updated.customerEmail,
     customerPhone: updated.customerPhone,

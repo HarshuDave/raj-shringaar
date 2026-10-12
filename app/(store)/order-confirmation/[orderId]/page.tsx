@@ -4,8 +4,11 @@ import Image from "next/image";
 import { cookies } from "next/headers";
 import { getOrderById } from "@/lib/data/repository";
 import { verifyOrderAccessToken } from "@/lib/auth/order-token";
+import { getAuthenticatedCustomer } from "@/lib/auth/customer-session";
 import OrderReceiptVerificationGate from "@/components/store/OrderReceiptVerificationGate";
 import OrderReceiptUrlScrubber from "@/components/store/OrderReceiptUrlScrubber";
+
+export const dynamic = "force-dynamic";
 
 interface PageProps {
   params: Promise<{ orderId: string }>;
@@ -26,12 +29,24 @@ export default async function OrderConfirmationPage({ params, searchParams }: Pa
     notFound();
   }
 
-  // Verify access authorization via cryptographic token or session cookie
+  // Verify access authorization via:
+  // 1. Cryptographic order-bound token (URL searchParam or httpOnly cookie), OR
+  // 2. Authenticated customer session where order.customerId strictly equals customer.id
   const cookieStore = await cookies();
   const cookieToken = cookieStore.get(`rs_order_token_${order.id}`)?.value;
   const candidateToken = token || cookieToken;
 
-  const isAuthorized = verifyOrderAccessToken(order.id, candidateToken);
+  const hasValidOrderToken = verifyOrderAccessToken(order.id, candidateToken);
+  let isAuthenticatedOwner = false;
+
+  if (!hasValidOrderToken && order.customerId) {
+    const customer = await getAuthenticatedCustomer();
+    if (customer && customer.phoneVerified && customer.id === order.customerId) {
+      isAuthenticatedOwner = true;
+    }
+  }
+
+  const isAuthorized = hasValidOrderToken || isAuthenticatedOwner;
 
   // If unauthorized, render verification gate to protect customer PII
   if (!isAuthorized) {
