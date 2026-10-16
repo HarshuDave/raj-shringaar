@@ -215,7 +215,7 @@ export async function setCustomerSessionCookie(rawToken: string, maxAgeSeconds =
   const cookieStore = await cookies();
   cookieStore.set(CUSTOMER_SESSION_COOKIE, rawToken, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: process.env.NODE_ENV === "production" || process.env.VERCEL === "1",
     sameSite: "lax",
     path: "/",
     maxAge: maxAgeSeconds,

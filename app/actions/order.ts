@@ -121,7 +121,7 @@ export async function placeOrderAction(input: PlaceOrderInput) {
     const cookieStore = await cookies();
     cookieStore.set(`rs_order_token_${order.id}`, accessToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: process.env.NODE_ENV === "production" || process.env.VERCEL === "1",
       maxAge: 60 * 60 * 24 * 7, // 7 days
       path: "/",
       sameSite: "lax",
@@ -206,7 +206,7 @@ export async function verifyOrderReceiptAccessAction(orderId: string, phoneInput
     const cookieStore = await cookies();
     cookieStore.set(`rs_order_token_${order.id}`, accessToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: process.env.NODE_ENV === "production" || process.env.VERCEL === "1",
       maxAge: 60 * 60 * 24 * 7,
       path: "/",
       sameSite: "lax",

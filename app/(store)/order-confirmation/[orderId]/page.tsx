@@ -9,6 +9,7 @@ import OrderReceiptVerificationGate from "@/components/store/OrderReceiptVerific
 import OrderReceiptUrlScrubber from "@/components/store/OrderReceiptUrlScrubber";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 interface PageProps {
   params: Promise<{ orderId: string }>;

@@ -3,6 +3,7 @@ import { getOrdersByCustomerId } from "@/lib/data/repository";
 import CustomerAccountClient from "@/components/store/CustomerAccountClient";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export const metadata = {
   title: "Devotional Account & Orders | Raj Shringaar",
